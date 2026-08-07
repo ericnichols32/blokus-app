@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import { COLOR_HEX } from '../colors'
 import type { Board as BoardState, Cell, Color } from '../game'
 import './Board.css'
@@ -10,11 +11,14 @@ interface BoardProps {
   onCellTap: (col: number, row: number) => void
 }
 
-export function Board({ board, previewCells, previewColor, previewValid, onCellTap }: BoardProps) {
+export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
+  { board, previewCells, previewColor, previewValid, onCellTap },
+  ref,
+) {
   const previewSet = new Set(previewCells.map(([c, r]) => `${c},${r}`))
 
   return (
-    <div className="board">
+    <div className="board" ref={ref}>
       {board.map((rowCells, row) =>
         rowCells.map((occupant, col) => {
           const isPreview = previewSet.has(`${col},${row}`)
@@ -37,4 +41,4 @@ export function Board({ board, previewCells, previewColor, previewValid, onCellT
       )}
     </div>
   )
-}
+})

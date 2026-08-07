@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Board } from './components/Board'
+import { PieceIcon } from './components/PieceIcon'
 import { PieceTray } from './components/PieceTray'
 import { COLOR_HEX, COLOR_LABEL } from './colors'
 import {
+  BOARD_SIZE,
   COLORS,
   applyMove,
   checkPlacement,
@@ -13,6 +15,10 @@ import {
 import type { Cell, PieceId } from './game'
 import './App.css'
 
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n))
+}
+
 function App() {
   const [gameState, setGameState] = useState(() => createGame(COLORS))
   const [selectedPieceId, setSelectedPieceId] = useState<PieceId | null>(null)
@@ -20,6 +26,9 @@ function App() {
   const [flipped, setFlipped] = useState(false)
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [dragPointerId, setDragPointerId] = useState<number | null>(null)
+  const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
+  const boardRef = useRef<HTMLDivElement>(null)
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
 
@@ -55,6 +64,39 @@ function App() {
     if (!selectedPieceId) return
     setAnchor([col, row])
     setErrorMessage(null)
+  }
+
+  function updateAnchorFromPoint(clientX: number, clientY: number) {
+    const rect = boardRef.current?.getBoundingClientRect()
+    if (!rect) return
+    if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
+      setAnchor(null)
+      return
+    }
+    const cellSize = rect.width / BOARD_SIZE
+    const col = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
+    const row = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    setAnchor([col, row])
+  }
+
+  function handleDragStart(id: PieceId, e: React.PointerEvent<HTMLButtonElement>) {
+    selectPiece(id)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragPointerId(e.pointerId)
+    setDragPointerPos({ x: e.clientX, y: e.clientY })
+    updateAnchorFromPoint(e.clientX, e.clientY)
+  }
+
+  function handleDragMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (e.pointerId !== dragPointerId) return
+    setDragPointerPos({ x: e.clientX, y: e.clientY })
+    updateAnchorFromPoint(e.clientX, e.clientY)
+  }
+
+  function handleDragEnd(e: React.PointerEvent<HTMLButtonElement>) {
+    if (e.pointerId !== dragPointerId) return
+    setDragPointerId(null)
+    setDragPointerPos(null)
   }
 
   function cancelSelection() {
@@ -118,12 +160,22 @@ function App() {
       </header>
 
       <Board
+        ref={boardRef}
         board={gameState.board}
         previewCells={previewCells}
         previewColor={selectedPieceId ? currentPlayer.color : null}
         previewValid={previewCheck?.valid ?? false}
         onCellTap={handleCellTap}
       />
+
+      {dragPointerPos && selectedPieceId && (
+        <div
+          className="drag-ghost"
+          style={{ left: dragPointerPos.x, top: dragPointerPos.y }}
+        >
+          <PieceIcon cells={currentCells} color={currentPlayer.color} cellSize={16} />
+        </div>
+      )}
 
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
 
@@ -154,6 +206,9 @@ function App() {
         color={currentPlayer.color}
         selectedPieceId={selectedPieceId}
         onSelect={selectPiece}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
       />
     </div>
   )

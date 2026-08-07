@@ -10,6 +10,16 @@
   padding-bottom: 12px;
 }
 
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 24px));
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 1000;
+}
+
 .status-bar {
   display: flex;
   align-items: center;
