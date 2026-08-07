@@ -1,0 +1,27 @@
+.piece-tray {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-top: 3px solid;
+  background: #0f172a;
+  -webkit-overflow-scrolling: touch;
+}
+
+.piece-tray-item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  background: #1e293b;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.piece-tray-item.selected {
+  border-color: #f8fafc;
+  background: #334155;
+}

@@ -1,0 +1,133 @@
+.app {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  background: #020617;
+  color: #f8fafc;
+  min-height: 100svh;
+  padding-bottom: 12px;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-weight: 600;
+}
+
+.status-bar .link {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.error-banner {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.piece-controls {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  justify-content: center;
+}
+
+.piece-controls button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.piece-controls button.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.piece-controls button.primary:disabled {
+  background: #1e293b;
+  border-color: #334155;
+  color: #64748b;
+}
+
+.game-over {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  gap: 16px;
+}
+
+.game-over h1 {
+  margin: 0;
+}
+
+.scoreboard {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scoreboard li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2px solid;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+.scoreboard .rank {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.scoreboard .score {
+  margin-left: auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.scoreboard .badge {
+  font-size: 12px;
+  background: #f59e0b;
+  color: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+button.primary {
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+}
