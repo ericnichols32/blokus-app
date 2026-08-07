@@ -18,4 +18,38 @@
   min-width: 0;
   min-height: 0;
   cursor: pointer;
+  background: var(--cell-empty);
+}
+
+/* Each colour's mandatory opening square, so the first move isn't a guess. */
+.board-cell.start-corner {
+  background: repeating-linear-gradient(
+    45deg,
+    #334155,
+    #334155 2px,
+    var(--cell-empty) 2px,
+    var(--cell-empty) 4px
+  );
+  box-shadow: inset 0 0 0 1px #475569;
+}
+
+.board-cell.preview-valid {
+  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.9);
+}
+
+/*
+ * Deliberately colour-independent: a hatch plus an outline, so an illegal
+ * placement is distinguishable even when the red player is the one moving
+ * (and for red/green colour-blind players).
+ */
+.board-cell.preview-invalid {
+  background: repeating-linear-gradient(
+    45deg,
+    #64748b,
+    #64748b 2px,
+    #1e293b 2px,
+    #1e293b 5px
+  );
+  box-shadow: inset 0 0 0 1px #f8fafc;
+  opacity: 0.85;
 }

@@ -75,7 +75,9 @@
   border-color: #2563eb;
 }
 
-.piece-controls button.primary:disabled {
+/* The row is always in the layout to keep the board from jumping, so the
+   idle state has to read as unavailable rather than merely unstyled. */
+.piece-controls button:disabled {
   background: #1e293b;
   border-color: #334155;
   color: #64748b;

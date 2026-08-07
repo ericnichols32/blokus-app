@@ -1,6 +1,9 @@
 export type Color = 'red' | 'yellow' | 'green' | 'blue'
 
-export const COLORS: Color[] = ['red', 'yellow', 'green', 'blue']
+// Standard Blokus turn order, running clockwise around the board:
+// blue (top-left), yellow (top-right), red (bottom-right), green (bottom-left).
+// Keep in sync with START_CORNERS.
+export const COLORS: Color[] = ['blue', 'yellow', 'red', 'green']
 
 // A cell offset relative to a piece's local origin.
 export type Cell = readonly [col: number, row: number]
