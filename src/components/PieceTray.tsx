@@ -30,7 +30,6 @@ export function PieceTray({
           key={id}
           type="button"
           className={`piece-tray-item ${id === selectedPieceId ? 'selected' : ''}`}
-          style={{ touchAction: 'none' }}
           onClick={() => onSelect(id)}
           onPointerDown={(e) => onDragStart(id, e)}
           onPointerMove={onDragMove}
