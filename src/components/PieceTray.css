@@ -1,15 +1,21 @@
+/*
+ * Wraps rather than scrolls horizontally. The items set touch-action: none so
+ * a drag can start anywhere on them, which would swallow a scroll gesture —
+ * and seeing the whole remaining hand at once matters strategically anyway.
+ */
 .piece-tray {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  overflow-x: auto;
   padding: 10px 12px;
   border-top: 3px solid;
   background: #0f172a;
-  -webkit-overflow-scrolling: touch;
 }
 
 .piece-tray-item {
   flex: 0 0 auto;
+  touch-action: none;
   display: flex;
   align-items: center;
   justify-content: center;
