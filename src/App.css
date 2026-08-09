@@ -1,40 +1,86 @@
-.app {
+.screen {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 12px;
   background: #020617;
   color: #f8fafc;
   min-height: 100svh;
-  padding-bottom: 12px;
+  /* Clears the iPhone home indicator, which the tray would otherwise sit under. */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  padding-top: env(safe-area-inset-top);
 }
 
-.drag-ghost {
-  position: fixed;
-  pointer-events: none;
-  transform: translate(-50%, calc(-100% - 24px));
-  background: rgba(15, 23, 42, 0.9);
-  border-radius: 8px;
-  padding: 6px;
-  z-index: 1000;
-}
-
-.status-bar {
+.stack {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.btn {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 15px;
+  font-family: inherit;
+  text-align: center;
+}
+
+.btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
   font-weight: 600;
 }
 
-.status-bar .link {
-  margin-left: auto;
-  background: none;
-  border: none;
+.btn.selected {
+  border-color: #f8fafc;
+  background: #334155;
+}
+
+.btn:disabled {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #475569;
+}
+
+/* Menu-sized button with a label and a line of explanation under it. */
+.btn.tall {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px 16px;
+  font-size: 16px;
+}
+
+.btn.tall .sub {
+  font-size: 13px;
   color: #94a3b8;
-  font-size: 14px;
-  text-decoration: underline;
+  font-weight: 400;
+}
+
+.btn.primary.tall .sub {
+  color: #cfe0fd;
+}
+
+.btn:disabled .sub {
+  color: #475569;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
 }
 
 .dot {
@@ -42,104 +88,5 @@
   height: 14px;
   border-radius: 50%;
   display: inline-block;
-}
-
-.error-banner {
-  margin: 8px 16px 0;
-  padding: 8px 12px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid #ef4444;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.piece-controls {
-  display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  justify-content: center;
-}
-
-.piece-controls button {
-  flex: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #f8fafc;
-  font-size: 14px;
-}
-
-.piece-controls button.primary {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-
-/* The row is always in the layout to keep the board from jumping, so the
-   idle state has to read as unavailable rather than merely unstyled. */
-.piece-controls button:disabled {
-  background: #1e293b;
-  border-color: #334155;
-  color: #64748b;
-}
-
-.game-over {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  gap: 16px;
-}
-
-.game-over h1 {
-  margin: 0;
-}
-
-.scoreboard {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  max-width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.scoreboard li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border: 2px solid;
-  border-radius: 8px;
-  background: #0f172a;
-}
-
-.scoreboard .rank {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.scoreboard .score {
-  margin-left: auto;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.scoreboard .badge {
-  font-size: 12px;
-  background: #f59e0b;
-  color: #1e293b;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-button.primary {
-  padding: 12px 20px;
-  border-radius: 8px;
-  border: none;
-  background: #2563eb;
-  color: white;
-  font-size: 16px;
-  font-weight: 600;
+  flex: 0 0 auto;
 }

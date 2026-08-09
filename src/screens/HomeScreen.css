@@ -1,0 +1,44 @@
+.home {
+  justify-content: center;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  gap: 20px;
+  max-width: 440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.home-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.home h1 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: -0.5px;
+}
+
+.logo {
+  display: grid;
+  grid-template-columns: repeat(2, 26px);
+  grid-template-rows: repeat(2, 26px);
+  gap: 4px;
+}
+
+.logo-cell {
+  border-radius: 5px;
+}
+
+.logo-cell.c1 { background: #3b82f6; }
+.logo-cell.c2 { background: #eab308; }
+.logo-cell.c3 { background: #22c55e; }
+.logo-cell.c4 { background: #ef4444; }
+
+.home .hint {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}

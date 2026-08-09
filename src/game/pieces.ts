@@ -66,9 +66,15 @@ export function getOrientationCells(pieceId: PieceId, rotationSteps: number, fli
   return cells
 }
 
+const orientationCache = new Map<PieceId, Orientation[]>()
+
 // All unique orientations (rotations x reflections) for a piece, deduplicated
 // since symmetric pieces (e.g. the square or the plus) have fewer than 8.
+// Cached: the move search asks for these on every piece, every turn.
 export function getOrientations(pieceId: PieceId): Orientation[] {
+  const cached = orientationCache.get(pieceId)
+  if (cached) return cached
+
   const base = normalize(PIECE_BY_ID[pieceId].cells)
   const rotations: (0 | 90 | 180 | 270)[] = [0, 90, 180, 270]
   const seen = new Set<string>()
@@ -86,5 +92,6 @@ export function getOrientations(pieceId: PieceId): Orientation[] {
     }
   }
 
+  orientationCache.set(pieceId, orientations)
   return orientations
 }
