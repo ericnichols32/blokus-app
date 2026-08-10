@@ -7,12 +7,17 @@
   background: #0f172a;
   border: 2px solid #334155;
   /*
-   * Height of everything else stacked in .app: status bar, piece controls, the
-   * four-row piece tray, and the gaps between them. Subtracting it keeps the
-   * whole game on screen on short phones, where 100vw alone would win and push
-   * the bottom tray rows below the fold.
+   * Height of everything else stacked in .game, measured at its tallest (a
+   * full 21-piece tray, which wraps to four rows):
+   *
+   *   status bar 50 + score strip 34 + controls 61 + tray 237 + gaps 72
+   *
+   * Subtracting it keeps the whole game on screen on short phones, where 100vw
+   * alone would win and push the bottom tray rows below the fold. Re-measure
+   * this if anything is added to the stack — the warning note deliberately
+   * floats over the board rather than joining it.
    */
-  --board-chrome: 400px;
+  --board-chrome: 454px;
   width: min(100vw, 100svh - var(--board-chrome));
   aspect-ratio: 1 / 1;
   margin: 0 auto;
@@ -38,6 +43,27 @@
     var(--cell-empty) 4px
   );
   box-shadow: inset 0 0 0 1px #475569;
+}
+
+/*
+ * Hints. `hint-reachable` covers every square the piece in hand could legally
+ * sit on; `hint-corner` dots the open corners it has to build from, which is
+ * the rule new players lose track of. A square can be both.
+ */
+.board-cell.hint-reachable {
+  background: var(--hint-tint);
+}
+
+.board-cell.hint-corner {
+  background:
+    radial-gradient(circle at center, var(--hint-dot) 0 30%, rgba(0, 0, 0, 0) 32%),
+    var(--cell-empty);
+}
+
+.board-cell.hint-reachable.hint-corner {
+  background:
+    radial-gradient(circle at center, var(--hint-dot) 0 30%, rgba(0, 0, 0, 0) 32%),
+    var(--hint-tint);
 }
 
 .board-cell.preview-valid {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from '../components/Board'
 import { PieceIcon } from '../components/PieceIcon'
 import { PieceTray } from '../components/PieceTray'
+import { ScoreStrip } from '../components/ScoreStrip'
 import { COLOR_HEX, COLOR_LABEL } from '../colors'
 import {
   BOARD_SIZE,
@@ -9,10 +10,15 @@ import {
   checkPlacement,
   chooseMove,
   finalizeScores,
+  findContactPoints,
+  findReachableCells,
   getOrientationCells,
-  pieceSize,
+  hasLegalPlacement,
 } from '../game'
 import type { Cell, Color, GameState, PieceId, Point } from '../game'
+import { rotateCells } from '../game'
+import { rotationFacing, screenToBoard } from '../boardView'
+import type { ViewRotation } from '../boardView'
 import type { Session } from '../session'
 import './GameScreen.css'
 
@@ -44,14 +50,35 @@ function grabCell(cells: readonly Cell[]): Cell {
 /** Long enough to read as deliberation rather than a glitch. */
 const COMPUTER_THINKING_MS = 550
 
+const HINTS_KEY = 'blokus:hints'
+
+// On by default: knowing where a piece may legally go is the rule newcomers
+// lose track of, and an experienced player can switch it off once.
+function loadHintsPreference(): boolean {
+  try {
+    return localStorage.getItem(HINTS_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
 interface GameScreenProps {
   session: Session
   onStateChange: (state: GameState) => void
+  onUndo: () => void
+  canUndo: boolean
   onExit: () => void
   onPlayAgain: () => void
 }
 
-export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: GameScreenProps) {
+export function GameScreen({
+  session,
+  onStateChange,
+  onUndo,
+  canUndo,
+  onExit,
+  onPlayAgain,
+}: GameScreenProps) {
   const gameState = session.state
   const [selectedPieceId, setSelectedPieceId] = useState<PieceId | null>(null)
   const [rotationSteps, setRotationSteps] = useState(0)
@@ -59,11 +86,34 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [dragPointerId, setDragPointerId] = useState<number | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
+  const [hintsOn, setHintsOn] = useState(loadHintsPreference)
+  const [viewRotation, setViewRotation] = useState<ViewRotation>(0)
   const boardRef = useRef<HTMLDivElement>(null)
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const currentSeat = session.seats[currentPlayer.color]
   const isComputerTurn = currentSeat.kind === 'computer' && !gameState.gameOver
+
+  /**
+   * The angle the board settles at. In pass and play that follows the turn, so
+   * whoever picks the phone up is looking at it from their own corner; in solo
+   * it is fixed to your seat, since you are always the same colour.
+   */
+  const restingRotation = useMemo(() => {
+    if (session.mode === 'solo') {
+      const yours = (Object.keys(session.seats) as Color[]).find(
+        (c) => session.seats[c].kind === 'human',
+      )
+      return rotationFacing(yours ?? currentPlayer.color)
+    }
+    return rotationFacing(currentPlayer.color)
+  }, [session.mode, session.seats, currentPlayer.color])
+
+  // Snap back whenever the resting angle changes — a hand rotation lasts for
+  // the turn it was made on, rather than sticking for the next player.
+  useEffect(() => {
+    setViewRotation(restingRotation)
+  }, [restingRotation])
 
   const clearSelection = useCallback(() => {
     setSelectedPieceId(null)
@@ -130,6 +180,35 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
     [clampedAnchor, currentCells],
   )
 
+  // Hints belong to whoever is about to move, so they go quiet while a computer
+  // is thinking rather than flashing that seat's options on screen.
+  const showHints = hintsOn && !isComputerTurn
+  const isFirstMove = !currentPlayer.hasPlayedFirstMove
+
+  const contactCells: Point[] = useMemo(
+    () => (showHints ? findContactPoints(gameState.board, currentPlayer.color, isFirstMove) : []),
+    [showHints, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
+  const hintCells: Point[] = useMemo(
+    () =>
+      showHints && currentCells.length > 0
+        ? findReachableCells(gameState.board, currentPlayer.color, currentCells, isFirstMove)
+        : [],
+    [showHints, currentCells, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
+  // Checked across every rotation, so "doesn't fit" means genuinely unplayable
+  // rather than just wrong way round. Counts as a hint, so it follows the
+  // toggle — someone who switched hints off is choosing to work it out.
+  const selectedFitsSomewhere = useMemo(
+    () =>
+      !showHints ||
+      selectedPieceId === null ||
+      hasLegalPlacement(gameState.board, currentPlayer.color, selectedPieceId, isFirstMove),
+    [showHints, selectedPieceId, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
   const previewCheck = useMemo(() => {
     if (!clampedAnchor || !selectedPieceId) return null
     return checkPlacement(
@@ -169,9 +248,13 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
       setAnchor(null)
       return
     }
+    // The board is square, so its bounding box is unchanged by the rotation and
+    // these stay valid — but the square under the finger has to be turned back
+    // into board coordinates.
     const cellSize = rect.width / BOARD_SIZE
-    const col = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
-    const row = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    const x = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
+    const y = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    const [col, row] = screenToBoard([x, y], viewRotation)
     anchorFromCell(col, row, cells)
   }
 
@@ -195,6 +278,26 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
     if (e.pointerId !== dragPointerId) return
     setDragPointerId(null)
     setDragPointerPos(null)
+  }
+
+  function toggleHints() {
+    setHintsOn((on) => {
+      try {
+        localStorage.setItem(HINTS_KEY, on ? 'off' : 'on')
+      } catch {
+        // Storage unavailable; the choice just won't stick between sessions.
+      }
+      return !on
+    })
+  }
+
+  // Undo can land back on the same player, which leaves the turn-change effect
+  // below unfired — so drop any piece in hand here rather than relying on it.
+  function handleUndo() {
+    clearSelection()
+    setRotationSteps(0)
+    setFlipped(false)
+    onUndo()
   }
 
   function confirmPlacement() {
@@ -257,23 +360,72 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
           {COLOR_LABEL[currentPlayer.color]}
           {isComputerTurn ? ' is thinking…' : "'s turn"}
         </span>
-        <span className="left-count">{remainingSquares(gameState, currentPlayer.color)} left</span>
+        <button
+          type="button"
+          className="icon-btn push-right"
+          onClick={() => setViewRotation((r) => ((r + 1) % 4) as ViewRotation)}
+          aria-label="Turn the board"
+          title="Turn the board"
+        >
+          ⟳
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={toggleHints}
+          aria-pressed={hintsOn}
+          aria-label={hintsOn ? 'Turn hints off' : 'Turn hints on'}
+          title={hintsOn ? 'Turn hints off' : 'Turn hints on'}
+        >
+          {hintsOn ? '💡' : '○'}
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={handleUndo}
+          disabled={!canUndo || isComputerTurn}
+          aria-label="Undo your last move"
+          title="Undo your last move"
+        >
+          ↶
+        </button>
       </header>
 
-      <Board
-        ref={boardRef}
-        board={gameState.board}
-        previewCells={previewCells}
-        previewColor={hasSelection ? currentPlayer.color : null}
-        previewValid={previewCheck?.valid ?? false}
-        onCellTap={handleCellTap}
-      />
+      <ScoreStrip session={session} />
+
+      <div className="board-area">
+        <Board
+          ref={boardRef}
+          board={gameState.board}
+          previewCells={previewCells}
+          previewColor={hasSelection ? currentPlayer.color : null}
+          previewValid={previewCheck?.valid ?? false}
+          contactCells={contactCells}
+          hintCells={hintCells}
+          hintColor={currentPlayer.color}
+          rotation={viewRotation}
+          onCellTap={handleCellTap}
+        />
+
+        {/* Floats over the foot of the board rather than sitting in the stack,
+            so a warning appearing mid-turn costs no height and shifts nothing
+            under your finger. */}
+        {hasSelection && !selectedFitsSomewhere && (
+          <p className="play-note" aria-live="polite">
+            That piece won&rsquo;t fit anywhere &mdash; try a smaller one.
+          </p>
+        )}
+      </div>
 
       {/* Only while the piece is off the board — once it's over the grid the
           board preview shows exactly where it will land. */}
       {dragPointerPos && hasSelection && !clampedAnchor && (
         <div className="drag-ghost" style={{ left: dragPointerPos.x, top: dragPointerPos.y }}>
-          <PieceIcon cells={currentCells} color={currentPlayer.color} cellSize={16} />
+          <PieceIcon
+            cells={rotateCells(currentCells, viewRotation)}
+            color={currentPlayer.color}
+            cellSize={16}
+          />
         </div>
       )}
 
@@ -317,6 +469,7 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
         pieceIds={currentPlayer.remainingPieceIds}
         color={currentPlayer.color}
         selectedPieceId={selectedPieceId}
+        rotation={viewRotation}
         onSelect={selectPiece}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
@@ -324,10 +477,4 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
       />
     </div>
   )
-}
-
-function remainingSquares(state: GameState, color: Color): number {
-  const player = state.players.find((p) => p.color === color)
-  if (!player) return 0
-  return player.remainingPieceIds.reduce((sum, id) => sum + pieceSize(id), 0)
 }

@@ -55,15 +55,24 @@ function key(cells: Cell[]): string {
   return cells.map(([c, r]) => `${c},${r}`).join('|')
 }
 
+/**
+ * Turns any cell set through quarter-turns clockwise, normalised back to the
+ * origin. Used for drawing a shape the way it will look once the board has
+ * been turned, as well as for the piece's own rotation.
+ */
+export function rotateCells(cells: readonly Cell[], steps: number): Cell[] {
+  let out = normalize([...cells])
+  const turns = ((steps % 4) + 4) % 4
+  for (let i = 0; i < turns; i++) out = rotate90(out)
+  return out
+}
+
 // Cells for a piece at an exact rotation/flip, independent of the
 // deduplicated list below — handy for UI controls where rotating a
 // visually-symmetric piece should still feel like it responded.
 export function getOrientationCells(pieceId: PieceId, rotationSteps: number, flipped: boolean): Cell[] {
   const base = normalize(PIECE_BY_ID[pieceId].cells)
-  let cells = flipped ? flipHorizontal(base) : base
-  const steps = ((rotationSteps % 4) + 4) % 4
-  for (let i = 0; i < steps; i++) cells = rotate90(cells)
-  return cells
+  return rotateCells(flipped ? flipHorizontal(base) : base, rotationSteps)
 }
 
 const orientationCache = new Map<PieceId, Orientation[]>()

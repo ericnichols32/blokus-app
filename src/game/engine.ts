@@ -1,16 +1,10 @@
-import {
-  checkPlacement,
-  cellsForPlacement,
-  createEmptyBoard,
-  findContactPoints,
-  placeCells,
-} from './board'
+import { checkPlacement, createEmptyBoard, findContactPoints, placeCells } from './board'
 import type { Board } from './board'
 import { getOrientations, PIECE_DEFINITIONS } from './pieces'
 import { computeScore } from './scoring'
 import type { ScoreResult } from './scoring'
 import { BOARD_SIZE } from './types'
-import type { Color, PieceId, PlacedPiece, Point } from './types'
+import type { Cell, Color, PieceId, PlacedPiece, Point } from './types'
 
 export interface PlayerState {
   color: Color
@@ -53,31 +47,45 @@ export function createGame(colors: Color[]): GameState {
 }
 
 /**
- * Walks every placement of this piece that covers at least one contact point,
- * which is exactly the set that could possibly be legal. Anchors are
- * deduplicated, since different (contact point, piece cell) pairs frequently
+ * Walks every placement of one fixed shape that covers at least one contact
+ * point, which is exactly the set that could possibly be legal. Anchors are
+ * deduplicated, since different (contact point, shape cell) pairs frequently
  * describe the same position. Return true from `visit` to stop early.
  */
+function eachCandidatePlacementOfShape(
+  shapeCells: readonly Cell[],
+  contactPoints: Point[],
+  visit: (cells: Point[]) => boolean | void,
+): boolean {
+  const seenAnchors = new Set<number>()
+
+  for (const [pointCol, pointRow] of contactPoints) {
+    for (const [offsetCol, offsetRow] of shapeCells) {
+      const anchorCol = pointCol - offsetCol
+      const anchorRow = pointRow - offsetRow
+      // Anchors may sit off-board, so bias into a non-negative key range.
+      const key = (anchorRow + BOARD_SIZE) * BOARD_SIZE * 4 + (anchorCol + BOARD_SIZE)
+      if (seenAnchors.has(key)) continue
+      seenAnchors.add(key)
+
+      const cells = shapeCells.map(
+        ([c, r]) => [anchorCol + c, anchorRow + r] as Point,
+      )
+      if (visit(cells) === true) return true
+    }
+  }
+
+  return false
+}
+
+/** The same walk, across every orientation of a piece. */
 function eachCandidatePlacement(
   pieceId: PieceId,
   contactPoints: Point[],
   visit: (cells: Point[]) => boolean | void,
 ): void {
   for (const orientation of getOrientations(pieceId)) {
-    const seenAnchors = new Set<number>()
-
-    for (const [pointCol, pointRow] of contactPoints) {
-      for (const [offsetCol, offsetRow] of orientation.cells) {
-        const anchorCol = pointCol - offsetCol
-        const anchorRow = pointRow - offsetRow
-        // Anchors may sit off-board, so bias into a non-negative key range.
-        const key = (anchorRow + BOARD_SIZE) * BOARD_SIZE * 4 + (anchorCol + BOARD_SIZE)
-        if (seenAnchors.has(key)) continue
-        seenAnchors.add(key)
-
-        if (visit(cellsForPlacement(orientation, [anchorCol, anchorRow])) === true) return
-      }
-    }
+    if (eachCandidatePlacementOfShape(orientation.cells, contactPoints, visit)) return
   }
 }
 
@@ -96,6 +104,50 @@ export function findLegalPlacements(
   })
 
   return results
+}
+
+/**
+ * Every board square this exact shape could legally cover, as a flat set of
+ * points rather than grouped by placement. This is what the board draws when
+ * hints are on, so it answers "where does the piece in my hand actually fit",
+ * for the orientation currently in hand rather than any rotation of it.
+ */
+export function findReachableCells(
+  board: Board,
+  color: Color,
+  shapeCells: readonly Cell[],
+  isFirstMoveForColor: boolean,
+): Point[] {
+  const contactPoints = findContactPoints(board, color, isFirstMoveForColor)
+  const reachable = new Map<number, Point>()
+
+  eachCandidatePlacementOfShape(shapeCells, contactPoints, (cells) => {
+    if (!checkPlacement(board, color, cells, isFirstMoveForColor).valid) return
+    for (const cell of cells) reachable.set(cell[1] * BOARD_SIZE + cell[0], cell)
+  })
+
+  return [...reachable.values()]
+}
+
+/** Whether a piece fits anywhere at all, in any rotation or reflection. */
+export function hasLegalPlacement(
+  board: Board,
+  color: Color,
+  pieceId: PieceId,
+  isFirstMoveForColor: boolean,
+): boolean {
+  const contactPoints = findContactPoints(board, color, isFirstMoveForColor)
+  if (contactPoints.length === 0) return false
+
+  let found = false
+  eachCandidatePlacement(pieceId, contactPoints, (cells) => {
+    if (checkPlacement(board, color, cells, isFirstMoveForColor).valid) {
+      found = true
+      return true
+    }
+  })
+
+  return found
 }
 
 /** Short-circuiting existence check, cheaper than findLegalPlacements when you just need a yes/no. */
@@ -165,6 +217,34 @@ export function advanceTurn(state: GameState): GameState {
   }
 
   return { ...state, players, gameOver: true }
+}
+
+/**
+ * Rebuilds a game from an ordered list of moves.
+ *
+ * `placedPieces` is already exactly that list, and turn order is a pure
+ * function of the board — `advanceTurn` derives it — so replaying reproduces
+ * the state exactly, including who passed out and on which turn. That is what
+ * makes undo possible without storing a stack of past boards.
+ *
+ * Throws if the replay lands on the wrong player, which would mean the move
+ * list and the turn rules disagree rather than that the caller asked for
+ * something impossible.
+ */
+export function replayMoves(colors: Color[], moves: PlacedPiece[]): GameState {
+  let state = createGame(colors)
+
+  for (const [i, move] of moves.entries()) {
+    const player = state.players[state.currentPlayerIndex]
+    if (player.color !== move.color) {
+      throw new Error(
+        `Replay diverged at move ${i}: turn order says ${player.color}, move says ${move.color}`,
+      )
+    }
+    state = applyMove(state, { pieceId: move.pieceId, cells: move.cells })
+  }
+
+  return state
 }
 
 export function finalizeScores(state: GameState): Record<Color, ScoreResult> {

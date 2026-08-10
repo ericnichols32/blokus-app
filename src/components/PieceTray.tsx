@@ -1,6 +1,7 @@
 import { COLOR_HEX } from '../colors'
-import { PIECE_BY_ID } from '../game'
+import { PIECE_BY_ID, rotateCells } from '../game'
 import type { Color, PieceId } from '../game'
+import type { ViewRotation } from '../boardView'
 import { PieceIcon } from './PieceIcon'
 import './PieceTray.css'
 
@@ -8,6 +9,8 @@ interface PieceTrayProps {
   pieceIds: PieceId[]
   color: Color
   selectedPieceId: PieceId | null
+  /** Turned with the board, so an icon matches the shape it will make on it. */
+  rotation: ViewRotation
   onSelect: (pieceId: PieceId) => void
   onDragStart: (pieceId: PieceId, e: React.PointerEvent<HTMLButtonElement>) => void
   onDragMove: (e: React.PointerEvent<HTMLButtonElement>) => void
@@ -18,6 +21,7 @@ export function PieceTray({
   pieceIds,
   color,
   selectedPieceId,
+  rotation,
   onSelect,
   onDragStart,
   onDragMove,
@@ -36,7 +40,11 @@ export function PieceTray({
           onPointerUp={onDragEnd}
           onPointerCancel={onDragEnd}
         >
-          <PieceIcon cells={PIECE_BY_ID[id].cells} color={color} cellSize={8} />
+          <PieceIcon
+            cells={rotateCells(PIECE_BY_ID[id].cells, rotation)}
+            color={color}
+            cellSize={8}
+          />
         </button>
       ))}
     </div>

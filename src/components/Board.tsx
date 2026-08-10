@@ -1,6 +1,7 @@
 import { forwardRef } from 'react'
 import type { CSSProperties } from 'react'
 import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import type { ViewRotation } from '../boardView'
 import { START_CORNERS } from '../game'
 import type { Board as BoardState, Color, Point } from '../game'
 import './Board.css'
@@ -18,26 +19,67 @@ interface BoardProps {
   previewCells: Point[]
   previewColor: Color | null
   previewValid: boolean
+  /** Empty squares where the current player could gain a corner. */
+  contactCells: Point[]
+  /** Empty squares the piece in hand could legally cover. */
+  hintCells: Point[]
+  /** Colour the hint marks are drawn in — the current player's. */
+  hintColor: Color
+  /** Quarter-turns clockwise to show the board at. */
+  rotation: ViewRotation
   onCellTap: (col: number, row: number) => void
 }
 
 export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
-  { board, previewCells, previewColor, previewValid, onCellTap },
+  {
+    board,
+    previewCells,
+    previewColor,
+    previewValid,
+    contactCells,
+    hintCells,
+    hintColor,
+    rotation,
+    onCellTap,
+  },
   ref,
 ) {
   const previewSet = new Set(previewCells.map(([c, r]) => `${c},${r}`))
+  const contactSet = new Set(contactCells.map(([c, r]) => `${c},${r}`))
+  const hintSet = new Set(hintCells.map(([c, r]) => `${c},${r}`))
+
+  // Hex with an alpha suffix rather than color-mix, so the tint renders the
+  // same on older iOS Safari — this runs as a home-screen app.
+  //
+  // The turn is a CSS transform on the whole grid rather than a reordering of
+  // the cells, so board coordinates never change: taps still hit-test to the
+  // right square on their own, and only drag, which does its own arithmetic,
+  // has to account for the angle.
+  const boardStyle = {
+    '--hint-tint': `${COLOR_HEX[hintColor]}2e`,
+    '--hint-dot': `${COLOR_HEX[hintColor]}cc`,
+    transform: rotation === 0 ? undefined : `rotate(${rotation * 90}deg)`,
+  } as CSSProperties
 
   return (
-    <div className="board" ref={ref}>
+    <div className="board" ref={ref} style={boardStyle}>
       {board.map((rowCells, row) =>
         rowCells.map((occupant, col) => {
-          const isPreview = !occupant && previewColor !== null && previewSet.has(`${col},${row}`)
+          const key = `${col},${row}`
+          const isPreview = !occupant && previewColor !== null && previewSet.has(key)
 
           // Valid previews tint with the player's colour; invalid ones use a
           // colour-independent hatch so "illegal" never reads as "the red player".
+          // Hints sit underneath the piece you are aiming, so the preview always
+          // wins where the two overlap.
           let className = 'board-cell'
-          if (isPreview) className += previewValid ? ' preview-valid' : ' preview-invalid'
-          else if (!occupant && START_CORNER_SET.has(`${col},${row}`)) className += ' start-corner'
+          if (isPreview) {
+            className += previewValid ? ' preview-valid' : ' preview-invalid'
+          } else if (!occupant) {
+            if (hintSet.has(key)) className += ' hint-reachable'
+            if (contactSet.has(key)) className += ' hint-corner'
+            else if (START_CORNER_SET.has(key)) className += ' start-corner'
+          }
 
           const style: CSSProperties = {}
           if (occupant) style.background = COLOR_HEX[occupant]
@@ -45,7 +87,7 @@ export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
 
           return (
             <button
-              key={`${col},${row}`}
+              key={key}
               type="button"
               tabIndex={-1}
               className={className}

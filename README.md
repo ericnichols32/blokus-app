@@ -36,10 +36,13 @@ The full intent, so it isn't only in someone's head:
 | Computer opponent | Done — easy, medium, hard |
 | Solo setup (colour, difficulty) | Done |
 | Saved game that survives a refresh | Done |
+| Undo your last move | Done |
+| Hints showing where a piece can go | Done |
+| Live scores during play | Done |
+| Rotating the board | Done |
 | Timed mode | Not started |
 | Online play against friends | Not started |
 | Stats | Not started |
-| Rotating the board | Not started |
 
 ## Rules as implemented
 
@@ -67,8 +70,9 @@ src/
     scoring.ts   End-of-game scoring
     ai.ts        Computer opponent
   screens/       One component per screen
-  components/    Board, piece tray, piece icon
-  session.ts     What a game is, and how it is saved
+  components/    Board, piece tray, piece icon, score strip
+  session.ts     What a game is, how it is saved, and undo
+  boardView.ts   Which way up the board is drawn, and the maths both ways
 ```
 
 The engine is deliberately free of React so it can be tested directly and later
@@ -85,7 +89,17 @@ randomness is allowed, so the easier levels stay varied.
 
 Move generation only considers placements touching one of your own corner
 contact points, rather than scanning all 400 squares. `search-equivalence.test.ts`
-checks that shortcut returns exactly what the exhaustive scan would.
+checks that shortcut returns exactly what the exhaustive scan would, and
+`hints.test.ts` does the same for the squares the hints light up.
+
+### Undo, and why there is no history
+
+Undo replays the game from the start rather than keeping a stack of past boards.
+`placedPieces` is already an ordered record of every move, and turn order is
+derived from the board, so replaying reproduces a state exactly — including who
+had passed out and when. That keeps the save format unchanged and stays correct
+if the turn rules are ever adjusted. `replay.test.ts` checks a rebuilt state
+equals the original at every point in a real game.
 
 ## Running it
 
@@ -99,15 +113,25 @@ npm run build    # production build into dist/
 
 Pushing to `main` runs the tests and, if they pass, publishes to GitHub Pages.
 
+## Playing aids
+
+- **Undo** takes back your last move. In a solo game it also rewinds the
+  computers' replies, so you land back on the turn you were actually deciding.
+- **Hints**, on by default and switched off from the status bar, dot your open
+  corners and tint the squares the piece in hand could legally cover. Picking a
+  piece that fits nowhere says so.
+- **Turning the board** follows the turn in pass and play, so each player looks
+  at it from their own corner. The button turns it by hand.
+
 ## Known gaps
 
 Beyond the unbuilt features above:
 
-- No undo. A placed piece is final.
-- No hint showing where the selected piece could legally go, which is the
-  hardest part of Blokus for a new player.
-- No running score or opponent piece counts during play.
-- The board can't be rotated.
+- On a short phone (an iPhone SE, say) the piece tray takes more height than the
+  board, leaving the board small enough that dragging is fiddly. A taller phone
+  is fine. Giving the board priority would mean rethinking the tray.
+- Undo is not available once the game is over.
+- Pieces in the tray have no accessible names, only a visual shape.
 
 ## If you add online play
 

@@ -3,11 +3,13 @@ import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { SoloSetupScreen } from './screens/SoloSetupScreen'
 import {
+  canUndo,
   clearSession,
   createPassAndPlay,
   createSolo,
   loadSession,
   saveSession,
+  undo,
 } from './session'
 import type { Session } from './session'
 import type { Color, Difficulty, GameState } from './game'
@@ -52,6 +54,10 @@ function App() {
     setSession((current) => (current ? { ...current, state } : current))
   }, [])
 
+  const handleUndo = useCallback(() => {
+    setSession((current) => (current ? undo(current) : current))
+  }, [])
+
   function startSolo(color: Color, difficulty: Difficulty) {
     setSession(createSolo(color, difficulty))
     setScreen('game')
@@ -79,6 +85,8 @@ function App() {
       <GameScreen
         session={session}
         onStateChange={handleStateChange}
+        onUndo={handleUndo}
+        canUndo={canUndo(session)}
         onExit={() => setScreen('home')}
         onPlayAgain={playAgain}
       />
