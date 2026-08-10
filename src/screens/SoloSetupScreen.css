@@ -1,32 +1,4 @@
-.setup {
-  padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
-  gap: 22px;
-  max-width: 440px;
-  margin: 0 auto;
-  width: 100%;
-  justify-content: flex-start;
-}
-
-.setup-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.setup-header h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
-.setup h2 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
+/* Layout and headings come from .screen.inner; only the colour picker is local. */
 .colour-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

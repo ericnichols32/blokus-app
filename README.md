@@ -18,8 +18,9 @@ The full intent, so it isn't only in someone's head:
 - **Stats** — wins and losses, average pieces left, perfect games, favourite
   colour and piece, and per-friend records.
 - **Gameplay** — drag a piece onto the board, rotate it, flip it, lock it in.
-  Rotating the board itself was also asked for, so each player can look at it
-  from their own side.
+  Each player should be able to look at the board from their own side.
+- **Accounts** — a username, claimed the first time you open the link, with no
+  password, so stats are tied to a person and visible on other people's pages.
 
 > The bullets above are reconstructed from conversation, not copied from a
 > written spec. If any of it drifts from what you actually want — particularly
@@ -33,14 +34,13 @@ The full intent, so it isn't only in someone's head:
 | Rules engine | Done — placement legality, turn order, pass-out, scoring |
 | Pass-and-play on one device | Done |
 | Home screen and navigation | Done |
-| Computer opponent | Done — easy, medium, hard |
-| Solo setup (colour, difficulty) | Done |
+| Computer opponent | Done — hard by default, easy and medium in settings |
+| Solo setup (colour) | Done |
 | Saved game that survives a refresh | Done |
-| Undo your last move | Done |
-| Hints showing where a piece can go | Done |
-| Live scores during play | Done |
-| Rotating the board | Done |
+| Settings screen | Done — live scores, difficulty |
+| Live scores during play | Done — off by default |
 | Recording finished games | Done — banked for stats |
+| Accounts and usernames | Not started |
 | Timed mode | Not started |
 | Online play against friends | Not started |
 | Stats screen | Not started |
@@ -72,7 +72,8 @@ src/
     ai.ts        Computer opponent
   screens/       One component per screen
   components/    Board, piece tray, piece icon, score strip
-  session.ts     What a game is, how it is saved, and undo
+  session.ts     What a game is and how it is saved
+  settings.ts    Preferences that outlive a game
   history.ts     Finished games, kept for the stats screen
   boardView.ts   Which way up the board is drawn, and the maths both ways
 ```
@@ -82,26 +83,46 @@ reused by a server.
 
 ### How the computer plays
 
-It scores every legal move and takes the best, weighting: piece size (dominant,
-since unplayed squares are the score), how many new corner contacts the move
-opens up for itself, how many of the opponents' contact points it takes away,
-and a mild pull toward the centre early on. Easy plays big pieces and little
-else; hard blocks and plays for reach. Difficulty also controls how much
-randomness is allowed, so the easier levels stay varied.
+It scores every legal move, weighting: piece size (dominant, since unplayed
+squares are the score), how many new corner contacts the move opens up for
+itself, how many of the opponents' contact points it takes away, and a mild pull
+toward the centre early on. Easy plays big pieces and little else; hard blocks
+and plays for reach.
+
+Choosing among those scores is split into two separate knobs, because the
+obvious single one can't do the job. A pure "take the best move" search makes
+the three computers in a solo game reach for the same piece as each other every
+turn — they share a scoring function and an empty board is symmetric, so they
+are all solving the same problem. Widening one combined randomness knob far
+enough to separate them also lets them dump small pieces, which is exactly how
+you lose at Blokus. So:
+
+- **The size floor** fixes how many squares a move must spend, as a fraction of
+  what the best move spends. Hard never settles for less. This sets strength.
+- **The band** picks randomly among the moves clearing that floor. This sets
+  variety, and is far wider for a player's opening move than after it.
+
+Widening only the opening is what makes it cheap. Measured over 150 openings and
+70 full games, it took the three computers from opening identically in every
+single game to 3% of games, and cost under a point a game; widening the second
+and third moves as well bought little further variety and cost three to four
+points a game. One different opening is enough, because the positions diverge
+from there. Each colour also carries a small standing tilt on the non-size
+weights, so the seats disagree about what "best" means rather than being one
+opponent played three times.
 
 Move generation only considers placements touching one of your own corner
 contact points, rather than scanning all 400 squares. `search-equivalence.test.ts`
-checks that shortcut returns exactly what the exhaustive scan would, and
-`hints.test.ts` does the same for the squares the hints light up.
+checks that shortcut returns exactly what the exhaustive scan would.
 
-### Undo, and why there is no history
+### Replay, and why there is no board history
 
-Undo replays the game from the start rather than keeping a stack of past boards.
-`placedPieces` is already an ordered record of every move, and turn order is
-derived from the board, so replaying reproduces a state exactly — including who
-had passed out and when. That keeps the save format unchanged and stays correct
-if the turn rules are ever adjusted. `replay.test.ts` checks a rebuilt state
-equals the original at every point in a real game.
+`placedPieces` is an ordered record of every move, and turn order is derived
+from the board, so replaying from the start reproduces a state exactly —
+including who had passed out and when. That means no stack of past boards has to
+be stored, and it stays correct if the turn rules are ever adjusted.
+`replay.test.ts` checks a rebuilt state equals the original at every point in a
+real game.
 
 ## Running it
 
@@ -115,15 +136,24 @@ npm run build    # production build into dist/
 
 Pushing to `main` runs the tests and, if they pass, publishes to GitHub Pages.
 
-## Playing aids
+## Placing a piece
 
-- **Undo** takes back your last move. In a solo game it also rewinds the
-  computers' replies, so you land back on the turn you were actually deciding.
-- **Hints**, on by default and switched off from the status bar, dot your open
-  corners and tint the squares the piece in hand could legally cover. Picking a
-  piece that fits nowhere says so.
-- **Turning the board** follows the turn in pass and play, so each player looks
-  at it from their own corner. The button turns it by hand.
+Drag a piece from the tray onto the board. The piece is drawn about three and a
+half squares **above** where you are actually pressing, so your fingertip never
+covers the thing you are aiming — the squares it would land on light up on the
+board underneath, and the two read as one gesture. Aiming from the lifted point
+also means you can reach the bottom row with your finger below the board.
+
+Letting go parks the piece where it is; **Place** commits it. Because the board
+is one drag surface, pressing anywhere on it picks the piece back up, so a piece
+dropped somewhere illegal can always be moved rather than stranded. Letting go
+away from the board returns it to the tray. Rotate and Flip work at any point.
+
+**Turning the board** follows the turn in pass and play, so each player looks at
+it from their own corner. In a solo game it is fixed to your own seat.
+
+Settings, reached from the gear on the home screen, holds the live score counter
+(off by default) and the computer's difficulty (hard by default).
 
 ### Finished games
 
@@ -146,17 +176,20 @@ The store is capped at 500 games, oldest dropped first.
 Beyond the unbuilt features above:
 
 - On a short phone (an iPhone SE, say) the piece tray takes more height than the
-  board, leaving the board small enough that dragging is fiddly. A taller phone
-  is fine. Giving the board priority would mean rethinking the tray.
-- Undo is not available once the game is over.
+  board, leaving the board around 257px. A taller phone gets the full width.
+  Giving the board priority would mean rethinking the tray.
+- There is no undo. Placing is a two-step drag-then-confirm, which is the guard
+  against a misplaced piece.
 - Pieces in the tray have no accessible names, only a visual shape.
+- The board's size reserves a fixed height for everything stacked around it
+  (`--board-chrome` in `Board.css`). Adding to that stack means re-measuring it.
 
 ## If you add online play
 
 Game state is currently stored as a snapshot of the whole board. Before wiring
 up a backend, switch to storing an append-only list of moves and deriving the
 board from it. A move is a couple of dozen bytes against 400 board cells, two
-clients appending can't conflict, and undo and replay come along for free.
+clients appending can't conflict, and replay comes along for free.
 
 Also note `applyMove` trusts that a move's cells really correspond to the piece
 it claims. That is fine while moves come from this app's own UI, but it needs

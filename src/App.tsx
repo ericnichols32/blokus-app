@@ -1,22 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { SoloSetupScreen } from './screens/SoloSetupScreen'
-import {
-  canUndo,
-  clearSession,
-  createPassAndPlay,
-  createSolo,
-  loadSession,
-  saveSession,
-  undo,
-} from './session'
+import { clearSession, createPassAndPlay, createSolo, loadSession, saveSession } from './session'
 import type { Session } from './session'
+import { loadSettings, saveSettings } from './settings'
+import type { Settings } from './settings'
 import { loadHistory, recordFinishedGame } from './history'
 import type { Color, Difficulty, GameState } from './game'
 import './App.css'
 
-type Screen = 'home' | 'solo-setup' | 'game'
+type Screen = 'home' | 'solo-setup' | 'settings' | 'game'
 
 /**
  * Which screen you were on, remembered across reloads. The service worker is
@@ -28,7 +23,7 @@ const SCREEN_KEY = 'blokus:screen'
 function loadScreen(): Screen {
   try {
     const saved = sessionStorage.getItem(SCREEN_KEY)
-    return saved === 'game' || saved === 'solo-setup' ? saved : 'home'
+    return saved === 'game' || saved === 'solo-setup' || saved === 'settings' ? saved : 'home'
   } catch {
     return 'home'
   }
@@ -38,11 +33,16 @@ function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [screen, setScreen] = useState<Screen>(() => (loadSession() ? loadScreen() : 'home'))
   const [gamesRecorded, setGamesRecorded] = useState(() => loadHistory().length)
+  const [settings, setSettings] = useState<Settings>(loadSettings)
 
   useEffect(() => {
     if (session) saveSession(session)
     else clearSession()
   }, [session])
+
+  useEffect(() => {
+    saveSettings(settings)
+  }, [settings])
 
   // Write a finished game to the history. recordFinishedGame ignores a game it
   // has already seen, so re-running this on reload or re-render is harmless —
@@ -64,12 +64,8 @@ function App() {
     setSession((current) => (current ? { ...current, state } : current))
   }, [])
 
-  const handleUndo = useCallback(() => {
-    setSession((current) => (current ? undo(current) : current))
-  }, [])
-
-  function startSolo(color: Color, difficulty: Difficulty) {
-    setSession(createSolo(color, difficulty))
+  function startSolo(color: Color) {
+    setSession(createSolo(color, settings.difficulty))
     setScreen('game')
   }
 
@@ -80,11 +76,13 @@ function App() {
 
   function playAgain() {
     if (!session) return
-    // Same opponents and difficulty, fresh board.
+    // Same opponents, fresh board. Difficulty comes from the seats rather than
+    // from settings, so changing the setting mid-rematch doesn't move the
+    // goalposts on a run of games you're already playing.
     const seats = session.seats
     const humanColor = (Object.keys(seats) as Color[]).find((c) => seats[c].kind === 'human')
     const difficulty = (Object.values(seats).find((s) => s.kind === 'computer')?.difficulty ??
-      'medium') as Difficulty
+      settings.difficulty) as Difficulty
 
     if (session.mode === 'solo' && humanColor) setSession(createSolo(humanColor, difficulty))
     else setSession(createPassAndPlay())
@@ -94,9 +92,8 @@ function App() {
     return (
       <GameScreen
         session={session}
+        settings={settings}
         onStateChange={handleStateChange}
-        onUndo={handleUndo}
-        canUndo={canUndo(session)}
         onExit={() => setScreen('home')}
         onPlayAgain={playAgain}
       />
@@ -107,6 +104,16 @@ function App() {
     return <SoloSetupScreen onStart={startSolo} onCancel={() => setScreen('home')} />
   }
 
+  if (screen === 'settings') {
+    return (
+      <SettingsScreen
+        settings={settings}
+        onChange={setSettings}
+        onClose={() => setScreen('home')}
+      />
+    )
+  }
+
   return (
     <HomeScreen
       saved={session}
@@ -114,6 +121,7 @@ function App() {
       onResume={() => setScreen('game')}
       onPlaySolo={() => setScreen('solo-setup')}
       onPassAndPlay={startPassAndPlay}
+      onSettings={() => setScreen('settings')}
     />
   )
 }

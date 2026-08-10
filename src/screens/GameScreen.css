@@ -19,10 +19,6 @@
   text-overflow: ellipsis;
 }
 
-.status-bar .push-right {
-  margin-left: auto;
-}
-
 .drag-ghost {
   position: fixed;
   pointer-events: none;
@@ -35,22 +31,6 @@
 
 .board-area {
   position: relative;
-}
-
-.play-note {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 8px;
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid #92400e;
-  font-size: 13px;
-  color: #fbbf24;
-  text-align: center;
-  pointer-events: none;
 }
 
 .piece-controls {

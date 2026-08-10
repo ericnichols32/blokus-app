@@ -19,50 +19,42 @@ interface BoardProps {
   previewCells: Point[]
   previewColor: Color | null
   previewValid: boolean
-  /** Empty squares where the current player could gain a corner. */
-  contactCells: Point[]
-  /** Empty squares the piece in hand could legally cover. */
-  hintCells: Point[]
-  /** Colour the hint marks are drawn in — the current player's. */
-  hintColor: Color
   /** Quarter-turns clockwise to show the board at. */
   rotation: ViewRotation
-  onCellTap: (col: number, row: number) => void
+  /**
+   * The board is one drag surface rather than a grid of tappable squares: with
+   * a piece in hand, pressing anywhere picks it up and moves it, and a tap is
+   * just a drag that went nowhere. That is what lets a piece already sitting on
+   * the board be picked up again instead of being stranded there.
+   */
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void
+  onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void
 }
 
 export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
-  {
-    board,
-    previewCells,
-    previewColor,
-    previewValid,
-    contactCells,
-    hintCells,
-    hintColor,
-    rotation,
-    onCellTap,
-  },
+  { board, previewCells, previewColor, previewValid, rotation, onPointerDown, onPointerMove, onPointerUp },
   ref,
 ) {
   const previewSet = new Set(previewCells.map(([c, r]) => `${c},${r}`))
-  const contactSet = new Set(contactCells.map(([c, r]) => `${c},${r}`))
-  const hintSet = new Set(hintCells.map(([c, r]) => `${c},${r}`))
 
-  // Hex with an alpha suffix rather than color-mix, so the tint renders the
-  // same on older iOS Safari — this runs as a home-screen app.
-  //
   // The turn is a CSS transform on the whole grid rather than a reordering of
-  // the cells, so board coordinates never change: taps still hit-test to the
-  // right square on their own, and only drag, which does its own arithmetic,
-  // has to account for the angle.
-  const boardStyle = {
-    '--hint-tint': `${COLOR_HEX[hintColor]}2e`,
-    '--hint-dot': `${COLOR_HEX[hintColor]}cc`,
+  // the cells, so board coordinates never change — only drag, which does its
+  // own arithmetic, has to account for the angle.
+  const boardStyle: CSSProperties = {
     transform: rotation === 0 ? undefined : `rotate(${rotation * 90}deg)`,
-  } as CSSProperties
+  }
 
   return (
-    <div className="board" ref={ref} style={boardStyle}>
+    <div
+      className="board"
+      ref={ref}
+      style={boardStyle}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
       {board.map((rowCells, row) =>
         rowCells.map((occupant, col) => {
           const key = `${col},${row}`
@@ -70,29 +62,20 @@ export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
 
           // Valid previews tint with the player's colour; invalid ones use a
           // colour-independent hatch so "illegal" never reads as "the red player".
-          // Hints sit underneath the piece you are aiming, so the preview always
-          // wins where the two overlap.
           let className = 'board-cell'
-          if (isPreview) {
-            className += previewValid ? ' preview-valid' : ' preview-invalid'
-          } else if (!occupant) {
-            if (hintSet.has(key)) className += ' hint-reachable'
-            if (contactSet.has(key)) className += ' hint-corner'
-            else if (START_CORNER_SET.has(key)) className += ' start-corner'
-          }
+          if (isPreview) className += previewValid ? ' preview-valid' : ' preview-invalid'
+          else if (!occupant && START_CORNER_SET.has(key)) className += ' start-corner'
 
           const style: CSSProperties = {}
           if (occupant) style.background = COLOR_HEX[occupant]
           else if (isPreview && previewValid) style.background = `${COLOR_HEX[previewColor]}99`
 
           return (
-            <button
+            <div
               key={key}
-              type="button"
-              tabIndex={-1}
               className={className}
               style={style}
-              onClick={() => onCellTap(col, row)}
+              role="img"
               aria-label={describeCell(col, row, occupant)}
             />
           )

@@ -18,6 +18,43 @@
   width: 100%;
 }
 
+/*
+ * Title and back arrow for a secondary screen. The generous top padding is
+ * deliberate: on a phone the safe-area inset alone leaves the header touching
+ * the clock and notch, which reads as clipped rather than as a full screen.
+ */
+.screen-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.screen-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+/* Shared by the secondary screens: a centred column with room to breathe. */
+.screen.inner {
+  padding: 0 20px calc(24px + env(safe-area-inset-bottom));
+  padding-top: calc(env(safe-area-inset-top) + 8px);
+  gap: 22px;
+  max-width: 440px;
+  margin: 0 auto;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.screen.inner h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
 .btn {
   padding: 12px;
   border-radius: 10px;

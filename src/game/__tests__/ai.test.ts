@@ -72,7 +72,9 @@ describe('chooseMove', () => {
     expect(pieceSize(move!.pieceId)).toBe(5)
   })
 
-  it('is deterministic on hard, and varies on easy', () => {
+  // Three computers facing a symmetric board must not mirror each other, so
+  // even hard varies its choice — just within a much narrower band.
+  it('varies its choice at every difficulty', () => {
     const state = createGame(COLORS)
     const player = state.players[0]
     const opponents: Color[] = ['yellow', 'red', 'green']
@@ -82,7 +84,7 @@ describe('chooseMove', () => {
         JSON.stringify(chooseMove(state.board, player, opponents, 'hard', seededRandom(seed))),
       ),
     )
-    expect(hardPicks.size).toBe(1)
+    expect(hardPicks.size).toBeGreaterThan(1)
 
     const easyPicks = new Set(
       [1, 2, 3, 4, 5].map((seed) =>
@@ -92,24 +94,35 @@ describe('chooseMove', () => {
     expect(easyPicks.size).toBeGreaterThan(1)
   })
 
-  it('beats easy when playing on hard', () => {
-    // Blue and red play hard, yellow and green play easy.
-    const difficulties: Record<Color, Difficulty> = {
-      blue: 'hard', yellow: 'easy', red: 'hard', green: 'easy',
-    }
+  /*
+   * Scored as an average margin rather than as a clean sweep of wins. Both
+   * levels choose randomly within a band, so "hard won all N" is a coin-flip
+   * assertion on a small sample that a harmless change to how many random
+   * numbers get drawn can break. The margin is the thing actually worth
+   * guarding, and it sits around 24 points — a threshold of 10 catches a real
+   * regression without failing on noise.
+   */
+  it('beats easy by a clear margin when playing on hard', () => {
+    const rounds = 6
+    let margin = 0
 
-    let hardWins = 0
-    const rounds = 5
+    for (let round = 0; round < rounds; round++) {
+      // Alternate which diagonal plays hard, so neither the turn order nor the
+      // per-colour styles decide the result.
+      const difficulties: Record<Color, Difficulty> =
+        round % 2 === 0
+          ? { blue: 'hard', yellow: 'easy', red: 'hard', green: 'easy' }
+          : { blue: 'easy', yellow: 'hard', red: 'easy', green: 'hard' }
 
-    for (let seed = 1; seed <= rounds; seed++) {
-      const { state } = playGame(difficulties, seed * 97)
+      const { state } = playGame(difficulties, (round + 1) * 97)
       const scores = finalizeScores(state)
-      const hardBest = Math.max(scores.blue.score, scores.red.score)
-      const easyBest = Math.max(scores.yellow.score, scores.green.score)
-      if (hardBest > easyBest) hardWins++
+      const best = (level: Difficulty) =>
+        Math.max(...COLORS.filter((c) => difficulties[c] === level).map((c) => scores[c].score))
+
+      margin += best('hard') - best('easy')
     }
 
-    expect(hardWins).toBe(rounds)
+    expect(margin / rounds).toBeGreaterThan(10)
   })
 
   it('leaves fewer squares unplayed on hard than on easy', () => {

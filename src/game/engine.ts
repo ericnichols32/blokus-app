@@ -106,50 +106,6 @@ export function findLegalPlacements(
   return results
 }
 
-/**
- * Every board square this exact shape could legally cover, as a flat set of
- * points rather than grouped by placement. This is what the board draws when
- * hints are on, so it answers "where does the piece in my hand actually fit",
- * for the orientation currently in hand rather than any rotation of it.
- */
-export function findReachableCells(
-  board: Board,
-  color: Color,
-  shapeCells: readonly Cell[],
-  isFirstMoveForColor: boolean,
-): Point[] {
-  const contactPoints = findContactPoints(board, color, isFirstMoveForColor)
-  const reachable = new Map<number, Point>()
-
-  eachCandidatePlacementOfShape(shapeCells, contactPoints, (cells) => {
-    if (!checkPlacement(board, color, cells, isFirstMoveForColor).valid) return
-    for (const cell of cells) reachable.set(cell[1] * BOARD_SIZE + cell[0], cell)
-  })
-
-  return [...reachable.values()]
-}
-
-/** Whether a piece fits anywhere at all, in any rotation or reflection. */
-export function hasLegalPlacement(
-  board: Board,
-  color: Color,
-  pieceId: PieceId,
-  isFirstMoveForColor: boolean,
-): boolean {
-  const contactPoints = findContactPoints(board, color, isFirstMoveForColor)
-  if (contactPoints.length === 0) return false
-
-  let found = false
-  eachCandidatePlacement(pieceId, contactPoints, (cells) => {
-    if (checkPlacement(board, color, cells, isFirstMoveForColor).valid) {
-      found = true
-      return true
-    }
-  })
-
-  return found
-}
-
 /** Short-circuiting existence check, cheaper than findLegalPlacements when you just need a yes/no. */
 export function hasAnyLegalMove(board: Board, player: PlayerState): boolean {
   const isFirstMove = !player.hasPlayedFirstMove

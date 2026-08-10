@@ -1,0 +1,65 @@
+.settings {
+  gap: 26px;
+}
+
+.settings .note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* A whole-row target rather than a small switch, so the label is tappable too. */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 16px;
+  text-align: left;
+}
+
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggle-text .sub {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.switch {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 50px;
+  height: 30px;
+  border-radius: 15px;
+  background: #334155;
+  padding: 3px;
+  transition: background 0.15s ease;
+}
+
+.switch.on {
+  background: #2563eb;
+}
+
+.switch .knob {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f8fafc;
+  transition: transform 0.15s ease;
+}
+
+.switch.on .knob {
+  transform: translateX(20px);
+}

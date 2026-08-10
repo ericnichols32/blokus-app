@@ -10,16 +10,13 @@ import {
   checkPlacement,
   chooseMove,
   finalizeScores,
-  findContactPoints,
-  findReachableCells,
   getOrientationCells,
-  hasLegalPlacement,
 } from '../game'
 import type { Cell, Color, GameState, PieceId, Point } from '../game'
 import { rotateCells } from '../game'
 import { rotationFacing, screenToBoard } from '../boardView'
-import type { ViewRotation } from '../boardView'
 import type { Session } from '../session'
+import type { Settings } from '../settings'
 import './GameScreen.css'
 
 function clamp(n: number, min: number, max: number) {
@@ -27,10 +24,25 @@ function clamp(n: number, min: number, max: number) {
 }
 
 /**
+ * How far above the touch point the piece is aimed, in board squares. A piece
+ * sitting under the touch point is a piece you are aiming blind, because your
+ * fingertip covers it. Lifting it clear is the whole trick — the squares it
+ * would land on still light up on the board, so the two read as one gesture.
+ *
+ * Constant rather than proportional to the piece: a lift that changed size with
+ * the shape in hand would be something you have to relearn every move. That
+ * means it has to be sized for the worst case instead. The piece hangs from the
+ * filled square nearest its middle, so the furthest anything hangs below the
+ * touch point is two squares — a five-tall piece held by its centre — and this
+ * clears even that by well over a square.
+ */
+const LIFT_IN_CELLS = 3.4
+
+/**
  * The filled cell nearest the shape's centre of mass. Used as the point the
- * piece is "held" by, so it sits under the finger instead of hanging down and
- * to the right of it — the bounding-box origin isn't even a filled square for
- * shapes like the X- and S-pentominoes.
+ * piece is "held" by, so it sits squarely above the finger instead of hanging
+ * down and to the right of it — the bounding-box origin isn't even a filled
+ * square for shapes like the X- and S-pentominoes.
  */
 function grabCell(cells: readonly Cell[]): Cell {
   const centreCol = cells.reduce((sum, [c]) => sum + c, 0) / cells.length
@@ -50,32 +62,18 @@ function grabCell(cells: readonly Cell[]): Cell {
 /** Long enough to read as deliberation rather than a glitch. */
 const COMPUTER_THINKING_MS = 550
 
-const HINTS_KEY = 'blokus:hints'
-
-// On by default: knowing where a piece may legally go is the rule newcomers
-// lose track of, and an experienced player can switch it off once.
-function loadHintsPreference(): boolean {
-  try {
-    return localStorage.getItem(HINTS_KEY) !== 'off'
-  } catch {
-    return true
-  }
-}
-
 interface GameScreenProps {
   session: Session
+  settings: Settings
   onStateChange: (state: GameState) => void
-  onUndo: () => void
-  canUndo: boolean
   onExit: () => void
   onPlayAgain: () => void
 }
 
 export function GameScreen({
   session,
+  settings,
   onStateChange,
-  onUndo,
-  canUndo,
   onExit,
   onPlayAgain,
 }: GameScreenProps) {
@@ -84,22 +82,28 @@ export function GameScreen({
   const [rotationSteps, setRotationSteps] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
-  const [dragPointerId, setDragPointerId] = useState<number | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
-  const [hintsOn, setHintsOn] = useState(loadHintsPreference)
-  const [viewRotation, setViewRotation] = useState<ViewRotation>(0)
   const boardRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Refs, not state: a pointermove can arrive before React has re-rendered from
+   * the pointerdown that started the drag, and a handler reading its own render's
+   * state would drop that move. Both are only ever read inside event handlers,
+   * so nothing needs to re-render when they change.
+   */
+  const dragPointerId = useRef<number | null>(null)
+  const dragCells = useRef<readonly Cell[]>([])
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const currentSeat = session.seats[currentPlayer.color]
   const isComputerTurn = currentSeat.kind === 'computer' && !gameState.gameOver
 
   /**
-   * The angle the board settles at. In pass and play that follows the turn, so
+   * The angle the board sits at. In pass and play that follows the turn, so
    * whoever picks the phone up is looking at it from their own corner; in solo
    * it is fixed to your seat, since you are always the same colour.
    */
-  const restingRotation = useMemo(() => {
+  const viewRotation = useMemo(() => {
     if (session.mode === 'solo') {
       const yours = (Object.keys(session.seats) as Color[]).find(
         (c) => session.seats[c].kind === 'human',
@@ -108,12 +112,6 @@ export function GameScreen({
     }
     return rotationFacing(currentPlayer.color)
   }, [session.mode, session.seats, currentPlayer.color])
-
-  // Snap back whenever the resting angle changes — a hand rotation lasts for
-  // the turn it was made on, rather than sticking for the next player.
-  useEffect(() => {
-    setViewRotation(restingRotation)
-  }, [restingRotation])
 
   const clearSelection = useCallback(() => {
     setSelectedPieceId(null)
@@ -134,7 +132,7 @@ export function GameScreen({
         gameState.board,
         currentPlayer,
         opponents,
-        currentSeat.difficulty ?? 'medium',
+        currentSeat.difficulty ?? 'hard',
       )
       // advanceTurn only stops on players who have a move, so null would mean
       // the engine and the search disagree — better to stall than to crash.
@@ -159,6 +157,12 @@ export function GameScreen({
     [selectedPieceId, rotationSteps, flipped],
   )
 
+  // Rotating or flipping mid-drag has to reach the pointer handlers, which read
+  // the shape from a ref rather than from their own render.
+  useEffect(() => {
+    dragCells.current = currentCells
+  }, [currentCells])
+
   // Keeping the whole piece on the board is the single clamp point, so rotating
   // near an edge nudges the piece back into bounds instead of silently clipping
   // the cells that fall off.
@@ -178,35 +182,6 @@ export function GameScreen({
         ? currentCells.map(([c, r]) => [clampedAnchor[0] + c, clampedAnchor[1] + r] as Point)
         : [],
     [clampedAnchor, currentCells],
-  )
-
-  // Hints belong to whoever is about to move, so they go quiet while a computer
-  // is thinking rather than flashing that seat's options on screen.
-  const showHints = hintsOn && !isComputerTurn
-  const isFirstMove = !currentPlayer.hasPlayedFirstMove
-
-  const contactCells: Point[] = useMemo(
-    () => (showHints ? findContactPoints(gameState.board, currentPlayer.color, isFirstMove) : []),
-    [showHints, gameState.board, currentPlayer.color, isFirstMove],
-  )
-
-  const hintCells: Point[] = useMemo(
-    () =>
-      showHints && currentCells.length > 0
-        ? findReachableCells(gameState.board, currentPlayer.color, currentCells, isFirstMove)
-        : [],
-    [showHints, currentCells, gameState.board, currentPlayer.color, isFirstMove],
-  )
-
-  // Checked across every rotation, so "doesn't fit" means genuinely unplayable
-  // rather than just wrong way round. Counts as a hint, so it follows the
-  // toggle — someone who switched hints off is choosing to work it out.
-  const selectedFitsSomewhere = useMemo(
-    () =>
-      !showHints ||
-      selectedPieceId === null ||
-      hasLegalPlacement(gameState.board, currentPlayer.color, selectedPieceId, isFirstMove),
-    [showHints, selectedPieceId, gameState.board, currentPlayer.color, isFirstMove],
   )
 
   const previewCheck = useMemo(() => {
@@ -231,73 +206,71 @@ export function GameScreen({
     setSelectedPieceId(id)
   }
 
-  function anchorFromCell(col: number, row: number, cells: readonly Cell[]) {
+  /**
+   * Points the piece at the square LIFT_IN_CELLS above the touch, or takes it
+   * off the board when that square isn't on one. Aiming from the lifted point
+   * rather than the finger means you can reach the bottom row with your finger
+   * below the board, and that letting go down in the tray reliably reads as
+   * "put it back" rather than as a placement on the last row.
+   */
+  function updateAnchorFromPoint(clientX: number, clientY: number, cells: readonly Cell[]) {
+    const rect = boardRef.current?.getBoundingClientRect()
+    if (!rect || cells.length === 0) return
+
+    // The board is square, so its bounding box is unchanged by the rotation and
+    // these stay valid — but the square being aimed at has to be turned back
+    // into board coordinates.
+    const cellSize = rect.width / BOARD_SIZE
+    const aimY = clientY - LIFT_IN_CELLS * cellSize
+
+    if (clientX < rect.left || clientX >= rect.right || aimY < rect.top || aimY >= rect.bottom) {
+      setAnchor(null)
+      return
+    }
+
+    const x = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
+    const y = clamp(Math.floor((aimY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    const [col, row] = screenToBoard([x, y], viewRotation)
     const [grabCol, grabRow] = grabCell(cells)
     setAnchor([col - grabCol, row - grabRow])
   }
 
-  function handleCellTap(col: number, row: number) {
-    if (!selectedPieceId || isComputerTurn) return
-    anchorFromCell(col, row, currentCells)
-  }
-
-  function updateAnchorFromPoint(clientX: number, clientY: number, cells: readonly Cell[]) {
-    const rect = boardRef.current?.getBoundingClientRect()
-    if (!rect || cells.length === 0) return
-    if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
-      setAnchor(null)
-      return
-    }
-    // The board is square, so its bounding box is unchanged by the rotation and
-    // these stay valid — but the square under the finger has to be turned back
-    // into board coordinates.
-    const cellSize = rect.width / BOARD_SIZE
-    const x = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
-    const y = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
-    const [col, row] = screenToBoard([x, y], viewRotation)
-    anchorFromCell(col, row, cells)
-  }
-
-  function handleDragStart(id: PieceId, e: React.PointerEvent<HTMLButtonElement>) {
-    if (isComputerTurn) return
-    const cells = id === selectedPieceId ? currentCells : getOrientationCells(id, 0, false)
-    selectPiece(id)
+  function beginDrag(e: React.PointerEvent<Element>, cells: readonly Cell[]) {
     e.currentTarget.setPointerCapture(e.pointerId)
-    setDragPointerId(e.pointerId)
+    dragPointerId.current = e.pointerId
+    dragCells.current = cells
     setDragPointerPos({ x: e.clientX, y: e.clientY })
     updateAnchorFromPoint(e.clientX, e.clientY, cells)
   }
 
-  function handleDragMove(e: React.PointerEvent<HTMLButtonElement>) {
-    if (e.pointerId !== dragPointerId) return
+  function handleTrayDragStart(id: PieceId, e: React.PointerEvent<HTMLButtonElement>) {
+    if (isComputerTurn) return
+    // The piece just selected isn't in state yet, so read its shape directly.
+    const cells = id === selectedPieceId ? currentCells : getOrientationCells(id, 0, false)
+    selectPiece(id)
+    beginDrag(e, cells)
+  }
+
+  /**
+   * Pressing the board with a piece in hand picks it up, wherever on the board
+   * you press — including a piece already parked there, which is what stops one
+   * getting stranded in a spot it can't legally sit in.
+   */
+  function handleBoardDragStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (isComputerTurn || !selectedPieceId) return
+    beginDrag(e, currentCells)
+  }
+
+  function handleDragMove(e: React.PointerEvent<Element>) {
+    if (e.pointerId !== dragPointerId.current) return
     setDragPointerPos({ x: e.clientX, y: e.clientY })
-    updateAnchorFromPoint(e.clientX, e.clientY, currentCells)
+    updateAnchorFromPoint(e.clientX, e.clientY, dragCells.current)
   }
 
-  function handleDragEnd(e: React.PointerEvent<HTMLButtonElement>) {
-    if (e.pointerId !== dragPointerId) return
-    setDragPointerId(null)
+  function handleDragEnd(e: React.PointerEvent<Element>) {
+    if (e.pointerId !== dragPointerId.current) return
+    dragPointerId.current = null
     setDragPointerPos(null)
-  }
-
-  function toggleHints() {
-    setHintsOn((on) => {
-      try {
-        localStorage.setItem(HINTS_KEY, on ? 'off' : 'on')
-      } catch {
-        // Storage unavailable; the choice just won't stick between sessions.
-      }
-      return !on
-    })
-  }
-
-  // Undo can land back on the same player, which leaves the turn-change effect
-  // below unfired — so drop any piece in hand here rather than relying on it.
-  function handleUndo() {
-    clearSelection()
-    setRotationSteps(0)
-    setFlipped(false)
-    onUndo()
   }
 
   function confirmPlacement() {
@@ -348,9 +321,15 @@ export function GameScreen({
 
   const hasSelection = selectedPieceId !== null
   const canInteract = !isComputerTurn
+  const canPlace = hasSelection && !!clampedAnchor && !!previewCheck?.valid && canInteract
 
   return (
-    <div className="screen game">
+    <div
+      className="screen game"
+      // The board sizes itself against everything stacked around it, so the
+      // optional score strip has to declare the height it costs.
+      style={{ '--extra-chrome': settings.showLiveScores ? '46px' : '0px' } as React.CSSProperties}
+    >
       <header className="status-bar">
         <button type="button" className="icon-btn" onClick={onExit} aria-label="Back to menu">
           ‹
@@ -360,38 +339,9 @@ export function GameScreen({
           {COLOR_LABEL[currentPlayer.color]}
           {isComputerTurn ? ' is thinking…' : "'s turn"}
         </span>
-        <button
-          type="button"
-          className="icon-btn push-right"
-          onClick={() => setViewRotation((r) => ((r + 1) % 4) as ViewRotation)}
-          aria-label="Turn the board"
-          title="Turn the board"
-        >
-          ⟳
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={toggleHints}
-          aria-pressed={hintsOn}
-          aria-label={hintsOn ? 'Turn hints off' : 'Turn hints on'}
-          title={hintsOn ? 'Turn hints off' : 'Turn hints on'}
-        >
-          {hintsOn ? '💡' : '○'}
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={handleUndo}
-          disabled={!canUndo || isComputerTurn}
-          aria-label="Undo your last move"
-          title="Undo your last move"
-        >
-          ↶
-        </button>
       </header>
 
-      <ScoreStrip session={session} />
+      {settings.showLiveScores && <ScoreStrip session={session} />}
 
       <div className="board-area">
         <Board
@@ -400,21 +350,11 @@ export function GameScreen({
           previewCells={previewCells}
           previewColor={hasSelection ? currentPlayer.color : null}
           previewValid={previewCheck?.valid ?? false}
-          contactCells={contactCells}
-          hintCells={hintCells}
-          hintColor={currentPlayer.color}
           rotation={viewRotation}
-          onCellTap={handleCellTap}
+          onPointerDown={handleBoardDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
         />
-
-        {/* Floats over the foot of the board rather than sitting in the stack,
-            so a warning appearing mid-turn costs no height and shifts nothing
-            under your finger. */}
-        {hasSelection && !selectedFitsSomewhere && (
-          <p className="play-note" aria-live="polite">
-            That piece won&rsquo;t fit anywhere &mdash; try a smaller one.
-          </p>
-        )}
       </div>
 
       {/* Only while the piece is off the board — once it's over the grid the
@@ -447,12 +387,7 @@ export function GameScreen({
         >
           Flip
         </button>
-        <button
-          type="button"
-          className="btn primary"
-          disabled={!hasSelection || !clampedAnchor || !previewCheck?.valid || !canInteract}
-          onClick={confirmPlacement}
-        >
+        <button type="button" className="btn primary" disabled={!canPlace} onClick={confirmPlacement}>
           Place
         </button>
         <button
@@ -469,9 +404,10 @@ export function GameScreen({
         pieceIds={currentPlayer.remainingPieceIds}
         color={currentPlayer.color}
         selectedPieceId={selectedPieceId}
+        selectedIsOnBoard={clampedAnchor !== null}
         rotation={viewRotation}
         onSelect={selectPiece}
-        onDragStart={handleDragStart}
+        onDragStart={handleTrayDragStart}
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
       />

@@ -9,6 +9,7 @@ interface HomeScreenProps {
   onResume: () => void
   onPlaySolo: () => void
   onPassAndPlay: () => void
+  onSettings: () => void
 }
 
 export function HomeScreen({
@@ -17,6 +18,7 @@ export function HomeScreen({
   onResume,
   onPlaySolo,
   onPassAndPlay,
+  onSettings,
 }: HomeScreenProps) {
   const resumable = saved !== null && isResumable(saved)
 
@@ -30,6 +32,15 @@ export function HomeScreen({
           <span className="logo-cell c4" />
         </div>
         <h1>Blokus</h1>
+        <button
+          type="button"
+          className="icon-btn settings-btn"
+          onClick={onSettings}
+          aria-label="Settings"
+          title="Settings"
+        >
+          ⚙
+        </button>
       </div>
 
       <div className="stack">

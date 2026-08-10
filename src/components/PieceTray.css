@@ -1,33 +1,50 @@
 /*
- * Wraps rather than scrolls horizontally. The items set touch-action: none so
- * a drag can start anywhere on them, which would swallow a scroll gesture —
+ * A fixed six-column grid rather than a centred wrap: every piece gets the same
+ * slot whatever its shape, so the hand stays evenly spaced as it empties
+ * instead of re-centring into ragged rows after each move.
+ *
+ * Six columns is the most that leaves room for the widest piece — five cells
+ * plus gaps — inside one column on a narrow phone.
+ *
+ * It wraps rather than scrolling horizontally. The items set touch-action: none
+ * so a drag can start anywhere on them, which would swallow a scroll gesture —
  * and seeing the whole remaining hand at once matters strategically anyway.
  */
 .piece-tray {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 10px 4px;
+  padding: 12px 10px;
   border-top: 3px solid;
   background: #0f172a;
 }
 
+/*
+ * No tile behind the piece — the shape is the target. The minimum size keeps a
+ * single-square piece tappable even though it only draws a few pixels wide.
+ */
 .piece-tray-item {
-  flex: 0 0 auto;
   touch-action: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
   min-width: 44px;
   min-height: 44px;
-  background: #1e293b;
-  border: 2px solid transparent;
-  border-radius: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  transition: transform 0.12s ease;
 }
 
+/* With no tile to outline, selection reads as the piece lifting off the tray. */
 .piece-tray-item.selected {
-  border-color: #f8fafc;
-  background: #334155;
+  transform: scale(1.18);
+  filter: drop-shadow(0 0 6px rgba(248, 250, 252, 0.75));
+}
+
+/* The piece in hand is on the board; leaving a copy behind reads as two pieces. */
+.piece-tray-item.in-hand {
+  opacity: 0.25;
 }

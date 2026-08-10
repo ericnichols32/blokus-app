@@ -1,10 +1,23 @@
 .home {
+  position: relative;
   justify-content: center;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   gap: 20px;
   max-width: 440px;
   margin: 0 auto;
   width: 100%;
+}
+
+/*
+ * Pinned to the corner rather than sitting in the menu: the settings in here
+ * are ones you set once, so they shouldn't compete with the buttons that
+ * actually start a game.
+ */
+.settings-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 16px);
+  right: 16px;
+  font-size: 17px;
 }
 
 .home-header {

@@ -1,30 +1,25 @@
 import { useState } from 'react'
 import { COLOR_HEX, COLOR_LABEL } from '../colors'
-import { COLORS, DIFFICULTY_LABEL } from '../game'
-import type { Color, Difficulty } from '../game'
+import { COLORS } from '../game'
+import type { Color } from '../game'
 import './SoloSetupScreen.css'
 
-const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard']
-
-const DIFFICULTY_BLURB: Record<Difficulty, string> = {
-  easy: 'Plays big pieces, not much else',
-  medium: 'Builds space and takes openings',
-  hard: 'Blocks you and plays for reach',
-}
-
 interface SoloSetupScreenProps {
-  onStart: (color: Color, difficulty: Difficulty) => void
+  onStart: (color: Color) => void
   onCancel: () => void
 }
 
+/**
+ * Colour is the only choice here. Difficulty lives in settings and defaults to
+ * hard, so starting a game is one decision rather than two.
+ */
 export function SoloSetupScreen({ onStart, onCancel }: SoloSetupScreenProps) {
   // Blue opens in standard Blokus, so it's the friendliest default.
   const [color, setColor] = useState<Color>('blue')
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
 
   return (
-    <div className="screen setup">
-      <header className="setup-header">
+    <div className="screen inner setup">
+      <header className="screen-header">
         <button type="button" className="icon-btn" onClick={onCancel} aria-label="Back">
           ‹
         </button>
@@ -53,26 +48,7 @@ export function SoloSetupScreen({ onStart, onCancel }: SoloSetupScreenProps) {
         </p>
       </section>
 
-      <section>
-        <h2>Difficulty</h2>
-        <div className="stack" role="radiogroup" aria-label="Difficulty">
-          {DIFFICULTIES.map((d) => (
-            <button
-              key={d}
-              type="button"
-              role="radio"
-              aria-checked={d === difficulty}
-              className={`btn tall ${d === difficulty ? 'selected' : ''}`}
-              onClick={() => setDifficulty(d)}
-            >
-              <span>{DIFFICULTY_LABEL[d]}</span>
-              <span className="sub">{DIFFICULTY_BLURB[d]}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <button type="button" className="btn primary tall" onClick={() => onStart(color, difficulty)}>
+      <button type="button" className="btn primary tall" onClick={() => onStart(color)}>
         <span>Start game</span>
       </button>
     </div>
