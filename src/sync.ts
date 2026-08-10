@@ -21,6 +21,39 @@ export interface SyncResult {
   failed: number
 }
 
+/**
+ * Everything that should happen for a signed-in player when the app opens or a
+ * game ends: make sure the shared store knows the name, then push the games.
+ */
+export async function syncAccount(account: Account): Promise<SyncResult> {
+  await ensureNameRegistered(account)
+  return syncHistory(account)
+}
+
+/**
+ * Registers a name the shared store has never heard of.
+ *
+ * This exists for one specific gap. A name claimed while no Firebase project
+ * was configured — or while offline — was only ever written to this device, so
+ * as far as the server is concerned nobody holds it. Left alone, a friend could
+ * later claim the same name and end up a different person under it, with both
+ * of them believing they were @eric.
+ *
+ * If somebody already holds the name, it is left alone rather than taken back.
+ * Everyone with the link is allowed to claim anything, so re-asserting on every
+ * load would turn a collision into a tug of war that neither side can see.
+ */
+async function ensureNameRegistered(account: Account): Promise<void> {
+  const backend = getBackend()
+  try {
+    if (await backend.lookupUsername(account.username)) return
+    await backend.claimUsername(account.playerId, account.username)
+  } catch {
+    // Offline, most likely. The next open tries again, and nothing downstream
+    // depends on this having succeeded.
+  }
+}
+
 export async function syncHistory(account: Account): Promise<SyncResult> {
   const backend = getBackend()
   const already = loadSynced()[account.playerId] ?? []

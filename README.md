@@ -216,6 +216,14 @@ so a dropped connection retries only the rest. The first sync after signing in
 carries **everything played before there was an account**, so nothing you played
 while deciding is lost.
 
+`sync.ts` also registers a name the server has never heard of. A name claimed
+while the app was device-only — before the Firebase project existed, or just
+offline — was written to the phone and nowhere else, so a friend could later
+claim the same name and become a *different* person under it, with both of them
+believing they were `@eric`. The first sync that reaches a server closes that.
+A name somebody else already holds is left alone rather than taken back;
+re-asserting on every load would be a tug of war neither side could see.
+
 ### Setting up the Firebase project
 
 Until this is done the app still works — it just keeps usernames on the device,

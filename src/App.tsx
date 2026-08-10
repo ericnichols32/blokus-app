@@ -11,7 +11,7 @@ import type { Settings } from './settings'
 import { loadHistory, recordFinishedGame } from './history'
 import { clearAccount, hasBeenPrompted, loadAccount, markPrompted, saveAccount } from './account'
 import type { Account } from './account'
-import { clearSyncState, syncHistory } from './sync'
+import { clearSyncState, syncAccount } from './sync'
 import type { Color, Difficulty, GameState } from './game'
 import './App.css'
 
@@ -78,12 +78,12 @@ function App() {
 
   // Push finished games up to whoever is signed in — on sign-in, which carries
   // everything played before there was an account, and again each time a game
-  // ends. Failures are left alone on purpose: syncHistory remembers what got
+  // ends. Failures are left alone on purpose: the sync remembers what got
   // through, so the next run retries the rest, and there is nothing useful to
   // interrupt someone with over a game that will upload itself shortly.
   useEffect(() => {
     if (!account) return
-    void syncHistory(account).catch(() => {})
+    void syncAccount(account).catch(() => {})
   }, [account, gamesRecorded])
 
   const handleStateChange = useCallback((state: GameState) => {

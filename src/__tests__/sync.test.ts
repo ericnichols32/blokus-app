@@ -3,7 +3,7 @@ import { resetBackend } from '../backend'
 import type { Backend } from '../backend'
 import { createLocalBackend } from '../backend/local'
 import type { GameRecord } from '../history'
-import { clearSyncState, pendingCount, syncHistory } from '../sync'
+import { clearSyncState, pendingCount, syncAccount, syncHistory } from '../sync'
 
 function installStorage() {
   const store = new Map<string, string>()
@@ -75,6 +75,42 @@ describe('when an upload fails', () => {
     failing.clear()
     expect(await syncHistory(ERIC)).toEqual({ uploaded: 1, failed: 0 })
     expect(await backend.listGames(ERIC.playerId)).toHaveLength(3)
+  })
+})
+
+describe('a name claimed before there was a server', () => {
+  it('is registered the first time the app reaches one', async () => {
+    const backend = createLocalBackend()
+    resetBackend(backend)
+
+    // Nothing has ever heard of Eric — the name was claimed device-only.
+    expect(await backend.lookupUsername('eric')).toBeNull()
+
+    await syncAccount(ERIC)
+    expect(await backend.lookupUsername('eric')).toMatchObject({ playerId: ERIC.playerId })
+  })
+
+  it('leaves a name somebody else already holds alone', async () => {
+    const backend = createLocalBackend()
+    resetBackend(backend)
+    await backend.claimUsername('someone-else', 'eric')
+
+    await syncAccount(ERIC)
+
+    // Not taken back: re-asserting on every load would be a tug of war that
+    // neither side can see.
+    expect(await backend.lookupUsername('eric')).toMatchObject({ playerId: 'someone-else' })
+  })
+
+  it('still uploads the games when the name cannot be registered', async () => {
+    const backend = createLocalBackend()
+    resetBackend({
+      ...backend,
+      lookupUsername: () => Promise.reject(new Error('offline')),
+    } as Backend)
+
+    putHistory(record('g1'))
+    expect(await syncAccount(ERIC)).toEqual({ uploaded: 1, failed: 0 })
   })
 })
 
