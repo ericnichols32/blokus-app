@@ -1,0 +1,53 @@
+.score-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.score-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 2px;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #cbd5e1;
+}
+
+/* Whose turn it is, echoing the colour dot in the status bar above. */
+.score-chip.current {
+  border-color: #475569;
+  background: #1e293b;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+/* Passed out: the number still counts toward the score, so it stays legible. */
+.score-chip.out {
+  opacity: 0.45;
+}
+
+.score-chip.out .count {
+  text-decoration: line-through;
+}
+
+.score-chip .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.score-chip .you {
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}

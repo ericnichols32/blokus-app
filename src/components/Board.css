@@ -7,12 +7,17 @@
   background: #0f172a;
   border: 2px solid #334155;
   /*
-   * Height of everything else stacked in .app: status bar, the reserved note
-   * line, piece controls, the four-row piece tray, and the gaps between them.
+   * Height of everything else stacked in .game, measured at its tallest (a
+   * full 21-piece tray, which wraps to four rows):
+   *
+   *   status bar 50 + score strip 34 + controls 61 + tray 237 + gaps 72
+   *
    * Subtracting it keeps the whole game on screen on short phones, where 100vw
-   * alone would win and push the bottom tray rows below the fold.
+   * alone would win and push the bottom tray rows below the fold. Re-measure
+   * this if anything is added to the stack — the warning note deliberately
+   * floats over the board rather than joining it.
    */
-  --board-chrome: 422px;
+  --board-chrome: 454px;
   width: min(100vw, 100svh - var(--board-chrome));
   aspect-ratio: 1 / 1;
   margin: 0 auto;

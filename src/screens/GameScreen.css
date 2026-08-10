@@ -16,13 +16,8 @@
   text-overflow: ellipsis;
 }
 
-.status-bar .left-count {
+.status-bar .push-right {
   margin-left: auto;
-  font-size: 13px;
-  font-weight: 400;
-  color: #94a3b8;
-  font-variant-numeric: tabular-nums;
-  flex: 0 0 auto;
 }
 
 .drag-ghost {
@@ -35,13 +30,24 @@
   z-index: 1000;
 }
 
+.board-area {
+  position: relative;
+}
+
 .play-note {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
   margin: 0;
-  padding: 4px 12px 0;
-  min-height: 18px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid #92400e;
   font-size: 13px;
   color: #fbbf24;
   text-align: center;
+  pointer-events: none;
 }
 
 .piece-controls {

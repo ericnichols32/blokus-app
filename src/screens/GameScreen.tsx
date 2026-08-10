@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board } from '../components/Board'
 import { PieceIcon } from '../components/PieceIcon'
 import { PieceTray } from '../components/PieceTray'
+import { ScoreStrip } from '../components/ScoreStrip'
 import { COLOR_HEX, COLOR_LABEL } from '../colors'
 import {
   BOARD_SIZE,
@@ -13,9 +14,8 @@ import {
   findReachableCells,
   getOrientationCells,
   hasLegalPlacement,
-  pieceSize,
 } from '../game'
-import type { Cell, Color, GameState, PieceId, Point } from '../game'
+import type { Cell, GameState, PieceId, Point } from '../game'
 import type { Session } from '../session'
 import './GameScreen.css'
 
@@ -331,10 +331,9 @@ export function GameScreen({
           {COLOR_LABEL[currentPlayer.color]}
           {isComputerTurn ? ' is thinking…' : "'s turn"}
         </span>
-        <span className="left-count">{remainingSquares(gameState, currentPlayer.color)} left</span>
         <button
           type="button"
-          className="icon-btn"
+          className="icon-btn push-right"
           onClick={toggleHints}
           aria-pressed={hintsOn}
           aria-label={hintsOn ? 'Turn hints off' : 'Turn hints on'}
@@ -354,17 +353,30 @@ export function GameScreen({
         </button>
       </header>
 
-      <Board
-        ref={boardRef}
-        board={gameState.board}
-        previewCells={previewCells}
-        previewColor={hasSelection ? currentPlayer.color : null}
-        previewValid={previewCheck?.valid ?? false}
-        contactCells={contactCells}
-        hintCells={hintCells}
-        hintColor={currentPlayer.color}
-        onCellTap={handleCellTap}
-      />
+      <ScoreStrip session={session} />
+
+      <div className="board-area">
+        <Board
+          ref={boardRef}
+          board={gameState.board}
+          previewCells={previewCells}
+          previewColor={hasSelection ? currentPlayer.color : null}
+          previewValid={previewCheck?.valid ?? false}
+          contactCells={contactCells}
+          hintCells={hintCells}
+          hintColor={currentPlayer.color}
+          onCellTap={handleCellTap}
+        />
+
+        {/* Floats over the foot of the board rather than sitting in the stack,
+            so a warning appearing mid-turn costs no height and shifts nothing
+            under your finger. */}
+        {hasSelection && !selectedFitsSomewhere && (
+          <p className="play-note" aria-live="polite">
+            That piece won&rsquo;t fit anywhere &mdash; try a smaller one.
+          </p>
+        )}
+      </div>
 
       {/* Only while the piece is off the board — once it's over the grid the
           board preview shows exactly where it will land. */}
@@ -373,14 +385,6 @@ export function GameScreen({
           <PieceIcon cells={currentCells} color={currentPlayer.color} cellSize={16} />
         </div>
       )}
-
-      {/* Height is reserved even when empty, so a warning appearing mid-turn
-          doesn't shove the board and tray around under your finger. */}
-      <p className="play-note" aria-live="polite">
-        {hasSelection && !selectedFitsSomewhere
-          ? "That piece won't fit anywhere — try a smaller one."
-          : ''}
-      </p>
 
       {/* Always rendered, so selecting a piece doesn't shift the board and tray. */}
       <div className="piece-controls">
@@ -429,10 +433,4 @@ export function GameScreen({
       />
     </div>
   )
-}
-
-function remainingSquares(state: GameState, color: Color): number {
-  const player = state.players.find((p) => p.color === color)
-  if (!player) return 0
-  return player.remainingPieceIds.reduce((sum, id) => sum + pieceSize(id), 0)
 }
