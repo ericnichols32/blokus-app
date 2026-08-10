@@ -167,6 +167,34 @@ export function advanceTurn(state: GameState): GameState {
   return { ...state, players, gameOver: true }
 }
 
+/**
+ * Rebuilds a game from an ordered list of moves.
+ *
+ * `placedPieces` is already exactly that list, and turn order is a pure
+ * function of the board — `advanceTurn` derives it — so replaying reproduces
+ * the state exactly, including who passed out and on which turn. That is what
+ * makes undo possible without storing a stack of past boards.
+ *
+ * Throws if the replay lands on the wrong player, which would mean the move
+ * list and the turn rules disagree rather than that the caller asked for
+ * something impossible.
+ */
+export function replayMoves(colors: Color[], moves: PlacedPiece[]): GameState {
+  let state = createGame(colors)
+
+  for (const [i, move] of moves.entries()) {
+    const player = state.players[state.currentPlayerIndex]
+    if (player.color !== move.color) {
+      throw new Error(
+        `Replay diverged at move ${i}: turn order says ${player.color}, move says ${move.color}`,
+      )
+    }
+    state = applyMove(state, { pieceId: move.pieceId, cells: move.cells })
+  }
+
+  return state
+}
+
 export function finalizeScores(state: GameState): Record<Color, ScoreResult> {
   const result = {} as Record<Color, ScoreResult>
   for (const player of state.players) {

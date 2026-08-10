@@ -83,6 +83,10 @@
   padding: 0;
 }
 
+.icon-btn:disabled {
+  opacity: 0.35;
+}
+
 .dot {
   width: 14px;
   height: 14px;

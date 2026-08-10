@@ -1,4 +1,4 @@
-import { BOARD_SIZE, COLORS, createGame } from './game'
+import { BOARD_SIZE, COLORS, createGame, replayMoves } from './game'
 import type { Color, Difficulty, GameState } from './game'
 
 export type SeatKind = 'human' | 'computer'
@@ -73,6 +73,37 @@ export function clearSession(): void {
   } catch {
     // Nothing useful to do if storage is unavailable.
   }
+}
+
+/**
+ * How many moves would survive an undo: everything from your own most recent
+ * move onward is dropped. In a solo game that takes back the computers' replies
+ * too, so you land back on your own turn facing the board you actually chose
+ * from — undoing one move at a time would just hand the turn straight back to
+ * the computer.
+ *
+ * Null when there is nothing of yours to take back.
+ */
+export function undoTarget(session: Session): number | null {
+  const moves = session.state.placedPieces
+  for (let i = moves.length - 1; i >= 0; i--) {
+    if (session.seats[moves[i].color].kind === 'human') return i
+  }
+  return null
+}
+
+export function canUndo(session: Session): boolean {
+  return undoTarget(session) !== null
+}
+
+/** Rewinds to just before your last move, or returns the session untouched. */
+export function undo(session: Session): Session {
+  const target = undoTarget(session)
+  if (target === null) return session
+
+  const colors = session.state.players.map((p) => p.color)
+  const kept = session.state.placedPieces.slice(0, target)
+  return { ...session, state: replayMoves(colors, kept) }
 }
 
 /** True once at least one piece is down and the game hasn't finished. */

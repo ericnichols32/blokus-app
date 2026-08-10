@@ -47,11 +47,20 @@ const COMPUTER_THINKING_MS = 550
 interface GameScreenProps {
   session: Session
   onStateChange: (state: GameState) => void
+  onUndo: () => void
+  canUndo: boolean
   onExit: () => void
   onPlayAgain: () => void
 }
 
-export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: GameScreenProps) {
+export function GameScreen({
+  session,
+  onStateChange,
+  onUndo,
+  canUndo,
+  onExit,
+  onPlayAgain,
+}: GameScreenProps) {
   const gameState = session.state
   const [selectedPieceId, setSelectedPieceId] = useState<PieceId | null>(null)
   const [rotationSteps, setRotationSteps] = useState(0)
@@ -197,6 +206,15 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
     setDragPointerPos(null)
   }
 
+  // Undo can land back on the same player, which leaves the turn-change effect
+  // below unfired — so drop any piece in hand here rather than relying on it.
+  function handleUndo() {
+    clearSelection()
+    setRotationSteps(0)
+    setFlipped(false)
+    onUndo()
+  }
+
   function confirmPlacement() {
     if (!selectedPieceId || !clampedAnchor || !previewCheck?.valid) return
     onStateChange(applyMove(gameState, { pieceId: selectedPieceId, cells: previewCells }))
@@ -258,6 +276,16 @@ export function GameScreen({ session, onStateChange, onExit, onPlayAgain }: Game
           {isComputerTurn ? ' is thinking…' : "'s turn"}
         </span>
         <span className="left-count">{remainingSquares(gameState, currentPlayer.color)} left</span>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={handleUndo}
+          disabled={!canUndo || isComputerTurn}
+          aria-label="Undo your last move"
+          title="Undo your last move"
+        >
+          ↶
+        </button>
       </header>
 
       <Board
