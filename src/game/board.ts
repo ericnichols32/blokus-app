@@ -30,6 +30,56 @@ const CORNER_NEIGHBORS: Point[] = [
   [-1, -1],
 ]
 
+/**
+ * Empty squares where this colour could legally gain a corner contact: diagonal
+ * to one of its own cells, but not edge-adjacent to any of them.
+ *
+ * Every legal placement after the first move must cover at least one of these,
+ * so they bound the whole search space. On the first move the only candidate is
+ * the colour's start corner. A blocked player has none, which is what makes
+ * "am I stuck?" cheap to answer.
+ */
+export function findContactPoints(
+  board: Board,
+  color: Color,
+  isFirstMoveForColor: boolean,
+): Point[] {
+  if (isFirstMoveForColor) {
+    const corner = START_CORNERS[color]
+    return board[corner[1]][corner[0]] === null ? [corner] : []
+  }
+
+  const points: Point[] = []
+  const seen = new Set<number>()
+
+  for (let row = 0; row < BOARD_SIZE; row++) {
+    for (let col = 0; col < BOARD_SIZE; col++) {
+      if (board[row][col] !== color) continue
+
+      for (const [dc, dr] of CORNER_NEIGHBORS) {
+        const c = col + dc
+        const r = row + dr
+        if (!isInBounds([c, r]) || board[r][c] !== null) continue
+
+        const key = r * BOARD_SIZE + c
+        if (seen.has(key)) continue
+
+        const edgeAdjacent = EDGE_NEIGHBORS.some(([ec, er]) => {
+          const nc = c + ec
+          const nr = r + er
+          return isInBounds([nc, nr]) && board[nr][nc] === color
+        })
+        if (edgeAdjacent) continue
+
+        seen.add(key)
+        points.push([c, r])
+      }
+    }
+  }
+
+  return points
+}
+
 export interface PlacementCheck {
   valid: boolean
   reason?: string

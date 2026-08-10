@@ -1,4 +1,10 @@
-import { checkPlacement, cellsForPlacement, createEmptyBoard, placeCells } from './board'
+import {
+  checkPlacement,
+  cellsForPlacement,
+  createEmptyBoard,
+  findContactPoints,
+  placeCells,
+} from './board'
 import type { Board } from './board'
 import { getOrientations, PIECE_DEFINITIONS } from './pieces'
 import { computeScore } from './scoring'
@@ -46,6 +52,35 @@ export function createGame(colors: Color[]): GameState {
   }
 }
 
+/**
+ * Walks every placement of this piece that covers at least one contact point,
+ * which is exactly the set that could possibly be legal. Anchors are
+ * deduplicated, since different (contact point, piece cell) pairs frequently
+ * describe the same position. Return true from `visit` to stop early.
+ */
+function eachCandidatePlacement(
+  pieceId: PieceId,
+  contactPoints: Point[],
+  visit: (cells: Point[]) => boolean | void,
+): void {
+  for (const orientation of getOrientations(pieceId)) {
+    const seenAnchors = new Set<number>()
+
+    for (const [pointCol, pointRow] of contactPoints) {
+      for (const [offsetCol, offsetRow] of orientation.cells) {
+        const anchorCol = pointCol - offsetCol
+        const anchorRow = pointRow - offsetRow
+        // Anchors may sit off-board, so bias into a non-negative key range.
+        const key = (anchorRow + BOARD_SIZE) * BOARD_SIZE * 4 + (anchorCol + BOARD_SIZE)
+        if (seenAnchors.has(key)) continue
+        seenAnchors.add(key)
+
+        if (visit(cellsForPlacement(orientation, [anchorCol, anchorRow])) === true) return
+      }
+    }
+  }
+}
+
 /** All valid cell sets for placing this piece anywhere on the board right now. */
 export function findLegalPlacements(
   board: Board,
@@ -53,34 +88,34 @@ export function findLegalPlacements(
   pieceId: PieceId,
   isFirstMoveForColor: boolean,
 ): Point[][] {
+  const contactPoints = findContactPoints(board, color, isFirstMoveForColor)
   const results: Point[][] = []
-  for (const orientation of getOrientations(pieceId)) {
-    for (let row = 0; row < BOARD_SIZE; row++) {
-      for (let col = 0; col < BOARD_SIZE; col++) {
-        const cells = cellsForPlacement(orientation, [col, row])
-        if (checkPlacement(board, color, cells, isFirstMoveForColor).valid) {
-          results.push(cells)
-        }
-      }
-    }
-  }
+
+  eachCandidatePlacement(pieceId, contactPoints, (cells) => {
+    if (checkPlacement(board, color, cells, isFirstMoveForColor).valid) results.push(cells)
+  })
+
   return results
 }
 
 /** Short-circuiting existence check, cheaper than findLegalPlacements when you just need a yes/no. */
 export function hasAnyLegalMove(board: Board, player: PlayerState): boolean {
+  const isFirstMove = !player.hasPlayedFirstMove
+  const contactPoints = findContactPoints(board, player.color, isFirstMove)
+  // A colour with nowhere left to touch a corner is finished, whatever it holds.
+  if (contactPoints.length === 0) return false
+
   for (const pieceId of player.remainingPieceIds) {
-    for (const orientation of getOrientations(pieceId)) {
-      for (let row = 0; row < BOARD_SIZE; row++) {
-        for (let col = 0; col < BOARD_SIZE; col++) {
-          const cells = cellsForPlacement(orientation, [col, row])
-          if (checkPlacement(board, player.color, cells, !player.hasPlayedFirstMove).valid) {
-            return true
-          }
-        }
+    let found = false
+    eachCandidatePlacement(pieceId, contactPoints, (cells) => {
+      if (checkPlacement(board, player.color, cells, isFirstMove).valid) {
+        found = true
+        return true
       }
-    }
+    })
+    if (found) return true
   }
+
   return false
 }
 

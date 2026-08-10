@@ -1,32 +1,121 @@
-# React + TypeScript + Vite
+# Blokus
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A mobile-first Blokus game, built as an installable web app (PWA) so it can be
+added to an iPhone home screen and shared as a plain URL — no App Store, no
+TestFlight, no developer account.
 
-Currently, two official plugins are available:
+**Live:** https://ericnichols32.github.io/blokus-app/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What this is meant to be
 
-## React Compiler
+The full intent, so it isn't only in someone's head:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Home screen** — start a new game, resume one in progress, reach stats.
+- **Solo vs. computer** — play the AI, in either an open (untimed) or timed game.
+- **Async online play against friends** — games persist and resume across
+  sessions, so two people can trade moves over days rather than sitting down
+  together.
+- **Stats** — wins and losses, average pieces left, perfect games, favourite
+  colour and piece, and per-friend records.
+- **Gameplay** — drag a piece onto the board, rotate it, flip it, lock it in.
+  Rotating the board itself was also asked for, so each player can look at it
+  from their own side.
 
-## Expanding the Oxlint configuration
+> The bullets above are reconstructed from conversation, not copied from a
+> written spec. If any of it drifts from what you actually want — particularly
+> the stats list and the timed mode — correct it here first, since this file is
+> now the reference.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## What is actually built
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+| Area | State |
+| --- | --- |
+| Rules engine | Done — placement legality, turn order, pass-out, scoring |
+| Pass-and-play on one device | Done |
+| Home screen and navigation | Done |
+| Computer opponent | Done — easy, medium, hard |
+| Solo setup (colour, difficulty) | Done |
+| Saved game that survives a refresh | Done |
+| Timed mode | Not started |
+| Online play against friends | Not started |
+| Stats | Not started |
+| Rotating the board | Not started |
+
+## Rules as implemented
+
+Standard Blokus. Twenty-one pieces per colour, on a 20x20 board.
+
+- Turn order runs clockwise: blue, yellow, red, green.
+- A colour's first piece must cover its own corner — blue top-left, yellow
+  top-right, red bottom-right, green bottom-left.
+- Pieces of the same colour may touch at corners but never along an edge.
+  Different colours may touch however they like.
+- Every piece after the first must touch one of your own pieces at a corner.
+- A player with no legal move is out for the rest of the game.
+- Scoring: -1 per unplayed square, +15 for placing all 21 pieces, and a further
+  +5 if the very last piece played was the single square.
+
+## How it is put together
+
+```
+src/
+  game/          Rules engine and AI. No React in here.
+    types.ts     Colours, piece ids, board size, start corners
+    pieces.ts    The 21 shapes, plus rotation and reflection
+    board.ts     Placement legality, contact points
+    engine.ts    Game state, move application, turn advancement
+    scoring.ts   End-of-game scoring
+    ai.ts        Computer opponent
+  screens/       One component per screen
+  components/    Board, piece tray, piece icon
+  session.ts     What a game is, and how it is saved
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The engine is deliberately free of React so it can be tested directly and later
+reused by a server.
+
+### How the computer plays
+
+It scores every legal move and takes the best, weighting: piece size (dominant,
+since unplayed squares are the score), how many new corner contacts the move
+opens up for itself, how many of the opponents' contact points it takes away,
+and a mild pull toward the centre early on. Easy plays big pieces and little
+else; hard blocks and plays for reach. Difficulty also controls how much
+randomness is allowed, so the easier levels stay varied.
+
+Move generation only considers placements touching one of your own corner
+contact points, rather than scanning all 400 squares. `search-equivalence.test.ts`
+checks that shortcut returns exactly what the exhaustive scan would.
+
+## Running it
+
+```sh
+npm install
+npm run dev      # local dev server
+npm test         # unit tests
+npm run lint
+npm run build    # production build into dist/
+```
+
+Pushing to `main` runs the tests and, if they pass, publishes to GitHub Pages.
+
+## Known gaps
+
+Beyond the unbuilt features above:
+
+- No undo. A placed piece is final.
+- No hint showing where the selected piece could legally go, which is the
+  hardest part of Blokus for a new player.
+- No running score or opponent piece counts during play.
+- The board can't be rotated.
+
+## If you add online play
+
+Game state is currently stored as a snapshot of the whole board. Before wiring
+up a backend, switch to storing an append-only list of moves and deriving the
+board from it. A move is a couple of dozen bytes against 400 board cells, two
+clients appending can't conflict, and undo and replay come along for free.
+
+Also note `applyMove` trusts that a move's cells really correspond to the piece
+it claims. That is fine while moves come from this app's own UI, but it needs
+validating server-side once they arrive over a network.
