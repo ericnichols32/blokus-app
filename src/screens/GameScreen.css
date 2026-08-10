@@ -35,6 +35,15 @@
   z-index: 1000;
 }
 
+.play-note {
+  margin: 0;
+  padding: 4px 12px 0;
+  min-height: 18px;
+  font-size: 13px;
+  color: #fbbf24;
+  text-align: center;
+}
+
 .piece-controls {
   display: flex;
   gap: 8px;

@@ -9,7 +9,10 @@ import {
   checkPlacement,
   chooseMove,
   finalizeScores,
+  findContactPoints,
+  findReachableCells,
   getOrientationCells,
+  hasLegalPlacement,
   pieceSize,
 } from '../game'
 import type { Cell, Color, GameState, PieceId, Point } from '../game'
@@ -44,6 +47,18 @@ function grabCell(cells: readonly Cell[]): Cell {
 /** Long enough to read as deliberation rather than a glitch. */
 const COMPUTER_THINKING_MS = 550
 
+const HINTS_KEY = 'blokus:hints'
+
+// On by default: knowing where a piece may legally go is the rule newcomers
+// lose track of, and an experienced player can switch it off once.
+function loadHintsPreference(): boolean {
+  try {
+    return localStorage.getItem(HINTS_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
 interface GameScreenProps {
   session: Session
   onStateChange: (state: GameState) => void
@@ -68,6 +83,7 @@ export function GameScreen({
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [dragPointerId, setDragPointerId] = useState<number | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
+  const [hintsOn, setHintsOn] = useState(loadHintsPreference)
   const boardRef = useRef<HTMLDivElement>(null)
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
@@ -139,6 +155,35 @@ export function GameScreen({
     [clampedAnchor, currentCells],
   )
 
+  // Hints belong to whoever is about to move, so they go quiet while a computer
+  // is thinking rather than flashing that seat's options on screen.
+  const showHints = hintsOn && !isComputerTurn
+  const isFirstMove = !currentPlayer.hasPlayedFirstMove
+
+  const contactCells: Point[] = useMemo(
+    () => (showHints ? findContactPoints(gameState.board, currentPlayer.color, isFirstMove) : []),
+    [showHints, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
+  const hintCells: Point[] = useMemo(
+    () =>
+      showHints && currentCells.length > 0
+        ? findReachableCells(gameState.board, currentPlayer.color, currentCells, isFirstMove)
+        : [],
+    [showHints, currentCells, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
+  // Checked across every rotation, so "doesn't fit" means genuinely unplayable
+  // rather than just wrong way round. Counts as a hint, so it follows the
+  // toggle — someone who switched hints off is choosing to work it out.
+  const selectedFitsSomewhere = useMemo(
+    () =>
+      !showHints ||
+      selectedPieceId === null ||
+      hasLegalPlacement(gameState.board, currentPlayer.color, selectedPieceId, isFirstMove),
+    [showHints, selectedPieceId, gameState.board, currentPlayer.color, isFirstMove],
+  )
+
   const previewCheck = useMemo(() => {
     if (!clampedAnchor || !selectedPieceId) return null
     return checkPlacement(
@@ -204,6 +249,17 @@ export function GameScreen({
     if (e.pointerId !== dragPointerId) return
     setDragPointerId(null)
     setDragPointerPos(null)
+  }
+
+  function toggleHints() {
+    setHintsOn((on) => {
+      try {
+        localStorage.setItem(HINTS_KEY, on ? 'off' : 'on')
+      } catch {
+        // Storage unavailable; the choice just won't stick between sessions.
+      }
+      return !on
+    })
   }
 
   // Undo can land back on the same player, which leaves the turn-change effect
@@ -279,6 +335,16 @@ export function GameScreen({
         <button
           type="button"
           className="icon-btn"
+          onClick={toggleHints}
+          aria-pressed={hintsOn}
+          aria-label={hintsOn ? 'Turn hints off' : 'Turn hints on'}
+          title={hintsOn ? 'Turn hints off' : 'Turn hints on'}
+        >
+          {hintsOn ? '💡' : '○'}
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
           onClick={handleUndo}
           disabled={!canUndo || isComputerTurn}
           aria-label="Undo your last move"
@@ -294,6 +360,9 @@ export function GameScreen({
         previewCells={previewCells}
         previewColor={hasSelection ? currentPlayer.color : null}
         previewValid={previewCheck?.valid ?? false}
+        contactCells={contactCells}
+        hintCells={hintCells}
+        hintColor={currentPlayer.color}
         onCellTap={handleCellTap}
       />
 
@@ -304,6 +373,14 @@ export function GameScreen({
           <PieceIcon cells={currentCells} color={currentPlayer.color} cellSize={16} />
         </div>
       )}
+
+      {/* Height is reserved even when empty, so a warning appearing mid-turn
+          doesn't shove the board and tray around under your finger. */}
+      <p className="play-note" aria-live="polite">
+        {hasSelection && !selectedFitsSomewhere
+          ? "That piece won't fit anywhere — try a smaller one."
+          : ''}
+      </p>
 
       {/* Always rendered, so selecting a piece doesn't shift the board and tray. */}
       <div className="piece-controls">
