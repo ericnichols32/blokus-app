@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { chooseMove, isMoveLegal, pieceSize } from '../ai'
 import type { Difficulty } from '../ai'
 import { applyMove, createGame, finalizeScores } from '../engine'
 import type { GameState } from '../engine'
 import { COLORS } from '../types'
 import type { Color } from '../types'
+
+// Several of these play complete four-player games to judge the AI, which takes
+// seconds by nature. Vitest's 5s default is not enough headroom on CI.
+vi.setConfig({ testTimeout: 60_000 })
 
 function seededRandom(seed: number) {
   let s = seed

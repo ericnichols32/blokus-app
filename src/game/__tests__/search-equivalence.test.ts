@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { checkPlacement, cellsForPlacement, createEmptyBoard, placeCells } from '../board'
 import type { Board } from '../board'
 import { getOrientations, PIECE_DEFINITIONS } from '../pieces'
@@ -6,6 +6,12 @@ import { findLegalPlacements, hasAnyLegalMove } from '../engine'
 import type { PlayerState } from '../engine'
 import { BOARD_SIZE } from '../types'
 import type { Color, PieceId, Point } from '../types'
+
+// The oracle below is deliberately the slow, unoptimised scan, and comparing
+// against it over thousands of boards costs several seconds. That is the point
+// of the test, so give it room rather than shrinking the sample: on a loaded CI
+// runner it lands well past vitest's 5s default and fails the deploy.
+vi.setConfig({ testTimeout: 60_000 })
 
 // The original exhaustive scan, kept here purely as an oracle.
 function bruteForce(board: Board, color: Color, pieceId: PieceId, first: boolean): Point[][] {
