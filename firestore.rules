@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Who can touch what, in the Blokus database.
+//
+// The arrangement here is deliberate and worth stating plainly, because it is
+// looser than a rule file usually is: there are no passwords in this app, so
+// any signed-in visitor may claim any username and write to any player. That is
+// the point — typing your name on a new phone is how you sign back in, and it
+// only works because nothing stops you.
+//
+// What these rules actually buy is a wall against everyone who is *not* holding
+// the link: a passing script cannot read or write anything without first
+// signing in through this app. Within the circle of people who have the link,
+// everyone is trusted equally. That matches how the app is shared — with
+// friends — and it is not a suitable arrangement for a public audience.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Which person owns a name. Small and rewritable, so a rename can release
+    // the old one.
+    match /usernames/{name} {
+      allow read, write: if request.auth != null;
+    }
+
+    // A person, and every finished game filed under them.
+    match /players/{playerId} {
+      allow read, write: if request.auth != null;
+
+      match /games/{gameId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // No catch-all rule below this point, and none is wanted: Firestore denies
+    // anything no rule allows, and rules combine with OR, so a catch-all
+    // `if false` would close nothing while reading as though it did.
+  }
+}

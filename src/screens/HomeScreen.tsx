@@ -1,29 +1,41 @@
 import { describeSession, isResumable } from '../session'
 import type { Session } from '../session'
+import type { Account } from '../account'
 import './HomeScreen.css'
 
 interface HomeScreenProps {
   saved: Session | null
+  /** Who is signed in, or null if nobody has claimed a name on this device. */
+  account: Account | null
   /** Finished games banked so far, waiting for the stats screen. */
   gamesRecorded: number
   onResume: () => void
   onPlaySolo: () => void
   onPassAndPlay: () => void
   onSettings: () => void
+  onAccount: () => void
 }
 
 export function HomeScreen({
   saved,
+  account,
   gamesRecorded,
   onResume,
   onPlaySolo,
   onPassAndPlay,
   onSettings,
+  onAccount,
 }: HomeScreenProps) {
   const resumable = saved !== null && isResumable(saved)
 
   return (
     <div className="screen home">
+      {/* Opposite the gear, so the two things you set once sit in the corners
+          and the buttons that start a game keep the middle to themselves. */}
+      <button type="button" className="account-chip" onClick={onAccount}>
+        {account ? `@${account.username}` : 'Sign in'}
+      </button>
+
       <div className="home-header">
         <div className="logo" aria-hidden="true">
           <span className="logo-cell c1" />

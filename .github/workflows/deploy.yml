@@ -25,6 +25,16 @@ jobs:
       - run: npm ci
       - run: npm run test
       - run: npm run build
+        # The Firebase project's details. Not secrets in the usual sense — a web
+        # config ships inside the bundle wherever it is kept, and firestore.rules
+        # is what actually guards the data — but held as repository secrets so
+        # the project can be swapped without a commit. With none of them set the
+        # build still succeeds, and accounts fall back to device-only.
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

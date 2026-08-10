@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { AccountScreen } from './screens/AccountScreen'
 import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -8,10 +9,13 @@ import type { Session } from './session'
 import { loadSettings, saveSettings } from './settings'
 import type { Settings } from './settings'
 import { loadHistory, recordFinishedGame } from './history'
+import { clearAccount, hasBeenPrompted, loadAccount, markPrompted, saveAccount } from './account'
+import type { Account } from './account'
+import { clearSyncState, syncHistory } from './sync'
 import type { Color, Difficulty, GameState } from './game'
 import './App.css'
 
-type Screen = 'home' | 'solo-setup' | 'settings' | 'game'
+type Screen = 'home' | 'solo-setup' | 'settings' | 'account' | 'game'
 
 /**
  * Which screen you were on, remembered across reloads. The service worker is
@@ -29,11 +33,23 @@ function loadScreen(): Screen {
   }
 }
 
+/**
+ * Where a fresh load lands. A game in progress wins — being dropped into the
+ * name prompt mid-game would be worse than asking later — and otherwise a
+ * player who has never been asked for a name gets asked now, once.
+ */
+function initialScreen(): Screen {
+  const session = loadSession()
+  if (session) return loadScreen()
+  return !loadAccount() && !hasBeenPrompted() ? 'account' : 'home'
+}
+
 function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
-  const [screen, setScreen] = useState<Screen>(() => (loadSession() ? loadScreen() : 'home'))
+  const [screen, setScreen] = useState<Screen>(initialScreen)
   const [gamesRecorded, setGamesRecorded] = useState(() => loadHistory().length)
   const [settings, setSettings] = useState<Settings>(loadSettings)
+  const [account, setAccount] = useState<Account | null>(loadAccount)
 
   useEffect(() => {
     if (session) saveSession(session)
@@ -59,6 +75,16 @@ function App() {
       // Storage unavailable; the screen just won't survive a reload.
     }
   }, [screen])
+
+  // Push finished games up to whoever is signed in — on sign-in, which carries
+  // everything played before there was an account, and again each time a game
+  // ends. Failures are left alone on purpose: syncHistory remembers what got
+  // through, so the next run retries the rest, and there is nothing useful to
+  // interrupt someone with over a game that will upload itself shortly.
+  useEffect(() => {
+    if (!account) return
+    void syncHistory(account).catch(() => {})
+  }, [account, gamesRecorded])
 
   const handleStateChange = useCallback((state: GameState) => {
     setSession((current) => (current ? { ...current, state } : current))
@@ -86,6 +112,40 @@ function App() {
 
     if (session.mode === 'solo' && humanColor) setSession(createSolo(humanColor, difficulty))
     else setSession(createPassAndPlay())
+  }
+
+  function signedIn(next: Account) {
+    setAccount(next)
+    saveAccount(next)
+    markPrompted()
+    setScreen('home')
+  }
+
+  function signOut() {
+    setAccount(null)
+    clearAccount()
+    // The next person on this device shouldn't inherit a record of what the
+    // last one had already uploaded, or their games would never be sent.
+    clearSyncState()
+    setScreen('home')
+  }
+
+  function leaveAccountScreen() {
+    // Declining counts as having been asked, so the prompt doesn't reappear on
+    // every load. The home screen keeps a way back to it.
+    markPrompted()
+    setScreen('home')
+  }
+
+  if (screen === 'account') {
+    return (
+      <AccountScreen
+        account={account}
+        onSignedIn={signedIn}
+        onSignOut={signOut}
+        onClose={leaveAccountScreen}
+      />
+    )
   }
 
   if (screen === 'game' && session) {
@@ -117,11 +177,13 @@ function App() {
   return (
     <HomeScreen
       saved={session}
+      account={account}
       gamesRecorded={gamesRecorded}
       onResume={() => setScreen('game')}
       onPlaySolo={() => setScreen('solo-setup')}
       onPassAndPlay={startPassAndPlay}
       onSettings={() => setScreen('settings')}
+      onAccount={() => setScreen('account')}
     />
   )
 }
