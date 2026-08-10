@@ -15,7 +15,10 @@ import {
   getOrientationCells,
   hasLegalPlacement,
 } from '../game'
-import type { Cell, GameState, PieceId, Point } from '../game'
+import type { Cell, Color, GameState, PieceId, Point } from '../game'
+import { rotateCells } from '../game'
+import { rotationFacing, screenToBoard } from '../boardView'
+import type { ViewRotation } from '../boardView'
 import type { Session } from '../session'
 import './GameScreen.css'
 
@@ -84,11 +87,33 @@ export function GameScreen({
   const [dragPointerId, setDragPointerId] = useState<number | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
   const [hintsOn, setHintsOn] = useState(loadHintsPreference)
+  const [viewRotation, setViewRotation] = useState<ViewRotation>(0)
   const boardRef = useRef<HTMLDivElement>(null)
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const currentSeat = session.seats[currentPlayer.color]
   const isComputerTurn = currentSeat.kind === 'computer' && !gameState.gameOver
+
+  /**
+   * The angle the board settles at. In pass and play that follows the turn, so
+   * whoever picks the phone up is looking at it from their own corner; in solo
+   * it is fixed to your seat, since you are always the same colour.
+   */
+  const restingRotation = useMemo(() => {
+    if (session.mode === 'solo') {
+      const yours = (Object.keys(session.seats) as Color[]).find(
+        (c) => session.seats[c].kind === 'human',
+      )
+      return rotationFacing(yours ?? currentPlayer.color)
+    }
+    return rotationFacing(currentPlayer.color)
+  }, [session.mode, session.seats, currentPlayer.color])
+
+  // Snap back whenever the resting angle changes — a hand rotation lasts for
+  // the turn it was made on, rather than sticking for the next player.
+  useEffect(() => {
+    setViewRotation(restingRotation)
+  }, [restingRotation])
 
   const clearSelection = useCallback(() => {
     setSelectedPieceId(null)
@@ -223,9 +248,13 @@ export function GameScreen({
       setAnchor(null)
       return
     }
+    // The board is square, so its bounding box is unchanged by the rotation and
+    // these stay valid — but the square under the finger has to be turned back
+    // into board coordinates.
     const cellSize = rect.width / BOARD_SIZE
-    const col = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
-    const row = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    const x = clamp(Math.floor((clientX - rect.left) / cellSize), 0, BOARD_SIZE - 1)
+    const y = clamp(Math.floor((clientY - rect.top) / cellSize), 0, BOARD_SIZE - 1)
+    const [col, row] = screenToBoard([x, y], viewRotation)
     anchorFromCell(col, row, cells)
   }
 
@@ -334,6 +363,15 @@ export function GameScreen({
         <button
           type="button"
           className="icon-btn push-right"
+          onClick={() => setViewRotation((r) => ((r + 1) % 4) as ViewRotation)}
+          aria-label="Turn the board"
+          title="Turn the board"
+        >
+          ⟳
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
           onClick={toggleHints}
           aria-pressed={hintsOn}
           aria-label={hintsOn ? 'Turn hints off' : 'Turn hints on'}
@@ -365,6 +403,7 @@ export function GameScreen({
           contactCells={contactCells}
           hintCells={hintCells}
           hintColor={currentPlayer.color}
+          rotation={viewRotation}
           onCellTap={handleCellTap}
         />
 
@@ -382,7 +421,11 @@ export function GameScreen({
           board preview shows exactly where it will land. */}
       {dragPointerPos && hasSelection && !clampedAnchor && (
         <div className="drag-ghost" style={{ left: dragPointerPos.x, top: dragPointerPos.y }}>
-          <PieceIcon cells={currentCells} color={currentPlayer.color} cellSize={16} />
+          <PieceIcon
+            cells={rotateCells(currentCells, viewRotation)}
+            color={currentPlayer.color}
+            cellSize={16}
+          />
         </div>
       )}
 
@@ -426,6 +469,7 @@ export function GameScreen({
         pieceIds={currentPlayer.remainingPieceIds}
         color={currentPlayer.color}
         selectedPieceId={selectedPieceId}
+        rotation={viewRotation}
         onSelect={selectPiece}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}

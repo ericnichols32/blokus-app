@@ -10,7 +10,10 @@
   font-weight: 600;
 }
 
+/* Shrinks to an ellipsis rather than pushing the buttons off a narrow screen. */
 .status-bar .turn-label {
+  flex: 0 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
