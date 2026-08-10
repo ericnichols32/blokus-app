@@ -1,6 +1,19 @@
 import { BOARD_SIZE, COLORS, createGame, replayMoves } from './game'
 import type { Color, Difficulty, GameState } from './game'
 
+/**
+ * Lives here rather than alongside the history it serves, because history.ts
+ * only needs types from this file — keeping the one value it would import out
+ * of it avoids a cycle between the two.
+ */
+export function newGameId(): string {
+  // randomUUID needs a secure context, which a plain-http or file:// open lacks.
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 export type SeatKind = 'human' | 'computer'
 
 export interface Seat {
@@ -12,6 +25,8 @@ export interface Seat {
 export type GameMode = 'solo' | 'pass-and-play'
 
 export interface Session {
+  /** Identifies this game, so a finished one is only recorded to history once. */
+  id: string
   mode: GameMode
   seats: Record<Color, Seat>
   state: GameState
@@ -28,13 +43,13 @@ export function createSolo(playerColor: Color, difficulty: Difficulty): Session 
   for (const color of COLORS) {
     seats[color] = color === playerColor ? { kind: 'human' } : { kind: 'computer', difficulty }
   }
-  return { mode: 'solo', seats, state: createGame(COLORS) }
+  return { id: newGameId(), mode: 'solo', seats, state: createGame(COLORS) }
 }
 
 export function createPassAndPlay(): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) seats[color] = { kind: 'human' }
-  return { mode: 'pass-and-play', seats, state: createGame(COLORS) }
+  return { id: newGameId(), mode: 'pass-and-play', seats, state: createGame(COLORS) }
 }
 
 export function loadSession(): Session | null {
@@ -53,7 +68,10 @@ export function loadSession(): Session | null {
       Array.isArray(state.players) &&
       state.players.length > 0
 
-    return looksValid ? parsed : null
+    if (!looksValid) return null
+    // Games saved before ids existed get one now, rather than throwing away a
+    // game in progress just to change the storage format.
+    return parsed.id ? parsed : { ...parsed, id: newGameId() }
   } catch {
     return null
   }

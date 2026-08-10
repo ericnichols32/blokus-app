@@ -12,6 +12,7 @@ import {
   undo,
 } from './session'
 import type { Session } from './session'
+import { loadHistory, recordFinishedGame } from './history'
 import type { Color, Difficulty, GameState } from './game'
 import './App.css'
 
@@ -36,10 +37,19 @@ function loadScreen(): Screen {
 function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [screen, setScreen] = useState<Screen>(() => (loadSession() ? loadScreen() : 'home'))
+  const [gamesRecorded, setGamesRecorded] = useState(() => loadHistory().length)
 
   useEffect(() => {
     if (session) saveSession(session)
     else clearSession()
+  }, [session])
+
+  // Write a finished game to the history. recordFinishedGame ignores a game it
+  // has already seen, so re-running this on reload or re-render is harmless —
+  // which matters, since a finished game stays loaded until you start another.
+  useEffect(() => {
+    if (!session) return
+    if (recordFinishedGame(session)) setGamesRecorded((n) => n + 1)
   }, [session])
 
   useEffect(() => {
@@ -100,6 +110,7 @@ function App() {
   return (
     <HomeScreen
       saved={session}
+      gamesRecorded={gamesRecorded}
       onResume={() => setScreen('game')}
       onPlaySolo={() => setScreen('solo-setup')}
       onPassAndPlay={startPassAndPlay}

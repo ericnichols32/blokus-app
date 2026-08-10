@@ -40,9 +40,10 @@ The full intent, so it isn't only in someone's head:
 | Hints showing where a piece can go | Done |
 | Live scores during play | Done |
 | Rotating the board | Done |
+| Recording finished games | Done — banked for stats |
 | Timed mode | Not started |
 | Online play against friends | Not started |
-| Stats | Not started |
+| Stats screen | Not started |
 
 ## Rules as implemented
 
@@ -72,6 +73,7 @@ src/
   screens/       One component per screen
   components/    Board, piece tray, piece icon, score strip
   session.ts     What a game is, how it is saved, and undo
+  history.ts     Finished games, kept for the stats screen
   boardView.ts   Which way up the board is drawn, and the maths both ways
 ```
 
@@ -122,6 +124,22 @@ Pushing to `main` runs the tests and, if they pass, publishes to GitHub Pages.
   piece that fits nowhere says so.
 - **Turning the board** follows the turn in pass and play, so each player looks
   at it from their own corner. The button turns it by hand.
+
+### Finished games
+
+Every completed game is summarised into `blokus:history:v1` when it ends. The
+stats screen doesn't exist yet, but a game not written down when it finishes is
+gone — nothing else keeps a finished board — so recording started early rather
+than letting stats begin from zero on the day it ships. The home screen shows
+the running count.
+
+A record holds each player's score, squares left, whether it was a perfect game,
+their rank, and which pieces they never placed. That last one is what makes
+"favourite piece" answerable: the 21 pieces are fixed, so what is left tells you
+what went down. The move list is deliberately not kept — it would be roughly
+fifteen times the size and is only needed to replay a game, which nothing does.
+
+The store is capped at 500 games, oldest dropped first.
 
 ## Known gaps
 

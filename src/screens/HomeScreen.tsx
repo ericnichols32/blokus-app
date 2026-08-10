@@ -4,12 +4,20 @@ import './HomeScreen.css'
 
 interface HomeScreenProps {
   saved: Session | null
+  /** Finished games banked so far, waiting for the stats screen. */
+  gamesRecorded: number
   onResume: () => void
   onPlaySolo: () => void
   onPassAndPlay: () => void
 }
 
-export function HomeScreen({ saved, onResume, onPlaySolo, onPassAndPlay }: HomeScreenProps) {
+export function HomeScreen({
+  saved,
+  gamesRecorded,
+  onResume,
+  onPlaySolo,
+  onPassAndPlay,
+}: HomeScreenProps) {
   const resumable = saved !== null && isResumable(saved)
 
   return (
@@ -51,9 +59,17 @@ export function HomeScreen({ saved, onResume, onPlaySolo, onPassAndPlay }: HomeS
           <span className="sub">Not built yet</span>
         </button>
 
+        {/* Still unbuilt, but games are being banked for it now — so say what
+            is actually there rather than implying nothing is happening. */}
         <button type="button" className="btn tall" disabled>
           <span>Stats</span>
-          <span className="sub">Not built yet</span>
+          <span className="sub">
+            {gamesRecorded === 0
+              ? 'Not built yet — finished games will be saved'
+              : `Not built yet — ${gamesRecorded} ${
+                  gamesRecorded === 1 ? 'game' : 'games'
+                } saved so far`}
+          </span>
         </button>
       </div>
 
