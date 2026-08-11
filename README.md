@@ -238,10 +238,26 @@ you are looking for rather than by the path.
 1. At [console.firebase.google.com](https://console.firebase.google.com), create
    a project. Turn Google Analytics **off**; nothing here uses it. The free
    (Spark) plan is enough, and no card is needed.
-2. **Databases & Storage → Firestore Database → Create database.** Pick a region
-   near you and start in **production mode** — the rules get replaced in step 4
-   anyway, and test mode expires after 30 days, which would break accounts with
-   no warning.
+2. **Databases & Storage → Firestore → Create database.**
+
+   Take **Firestore**, under the *NoSQL* heading. The *Storage* entry below it
+   is object storage for images and video, it is not used here, and its page
+   demands a pricing upgrade — which is easy to read as "this project needs a
+   paid plan". It doesn't. Firestore is free on Spark at this scale.
+
+   The wizard has three steps:
+
+   - **Edition** — Standard. Enterprise is a paid tier for query features
+     nothing here uses.
+   - **Database ID & location** — leave the ID as `(default)`. The app calls
+     `getFirestore(app)`, which resolves to the default database; a custom ID
+     leaves it connecting to something that isn't there, and the error you get
+     is a permission failure rather than a missing-database one. The location
+     **cannot be changed afterwards** — any US region is equivalent at this
+     scale, but changing your mind later means deleting and recreating.
+   - **Configure** — production mode. The rules get replaced in step 4 anyway,
+     and test mode expires after 30 days, which would break accounts with no
+     warning.
 3. **Security → Authentication → Get started → Anonymous → Enable.** This does
    not identify anyone; it exists so the rules can require a caller that came
    through the app. See the comment at the top of `firestore.rules`.
