@@ -4,6 +4,7 @@ import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { SoloSetupScreen } from './screens/SoloSetupScreen'
+import { StatsScreen } from './screens/StatsScreen'
 import {
   clearSession,
   createPassAndPlay,
@@ -16,13 +17,14 @@ import type { Session } from './session'
 import { loadSettings, saveSettings } from './settings'
 import type { Settings } from './settings'
 import { loadHistory, recordFinishedGame } from './history'
+import type { GameRecord } from './history'
 import { clearAccount, hasBeenPrompted, loadAccount, markPrompted, saveAccount } from './account'
 import type { Account } from './account'
 import { clearSyncState, syncAccount } from './sync'
 import type { Color, GameState } from './game'
 import './App.css'
 
-type Screen = 'home' | 'solo-setup' | 'settings' | 'account' | 'game'
+type Screen = 'home' | 'solo-setup' | 'settings' | 'stats' | 'account' | 'game'
 
 /**
  * Which screen you were on, remembered across reloads. The service worker is
@@ -34,7 +36,12 @@ const SCREEN_KEY = 'blokus:screen'
 function loadScreen(): Screen {
   try {
     const saved = sessionStorage.getItem(SCREEN_KEY)
-    return saved === 'game' || saved === 'solo-setup' || saved === 'settings' ? saved : 'home'
+    return saved === 'game' ||
+      saved === 'solo-setup' ||
+      saved === 'settings' ||
+      saved === 'stats'
+      ? saved
+      : 'home'
   } catch {
     return 'home'
   }
@@ -54,7 +61,10 @@ function initialScreen(): Screen {
 function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [screen, setScreen] = useState<Screen>(initialScreen)
-  const [gamesRecorded, setGamesRecorded] = useState(() => loadHistory().length)
+  // The games themselves rather than a count of them, since the stats screen
+  // reads every one. Held here so a game finishing updates the stats behind you
+  // without a reload.
+  const [history, setHistory] = useState<GameRecord[]>(loadHistory)
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [account, setAccount] = useState<Account | null>(loadAccount)
 
@@ -72,7 +82,8 @@ function App() {
   // which matters, since a finished game stays loaded until you start another.
   useEffect(() => {
     if (!session) return
-    if (recordFinishedGame(session)) setGamesRecorded((n) => n + 1)
+    const recorded = recordFinishedGame(session)
+    if (recorded) setHistory((games) => [...games, recorded])
   }, [session])
 
   useEffect(() => {
@@ -91,7 +102,7 @@ function App() {
   useEffect(() => {
     if (!account) return
     void syncAccount(account).catch(() => {})
-  }, [account, gamesRecorded])
+  }, [account, history.length])
 
   const handleStateChange = useCallback((state: GameState) => {
     setSession((current) => (current ? { ...current, state } : current))
@@ -180,6 +191,17 @@ function App() {
     )
   }
 
+  if (screen === 'stats') {
+    return (
+      <StatsScreen
+        history={history}
+        account={account}
+        onClose={() => setScreen('home')}
+        onPlaySolo={() => setScreen('solo-setup')}
+      />
+    )
+  }
+
   if (screen === 'settings') {
     return (
       <SettingsScreen
@@ -194,10 +216,11 @@ function App() {
     <HomeScreen
       saved={session}
       account={account}
-      gamesRecorded={gamesRecorded}
+      gamesRecorded={history.length}
       onResume={() => setScreen('game')}
       onPlaySolo={() => setScreen('solo-setup')}
       onPassAndPlay={startPassAndPlay}
+      onStats={() => setScreen('stats')}
       onSettings={() => setScreen('settings')}
       onAccount={() => setScreen('account')}
     />

@@ -7,11 +7,12 @@ interface HomeScreenProps {
   saved: Session | null
   /** Who is signed in, or null if nobody has claimed a name on this device. */
   account: Account | null
-  /** Finished games banked so far, waiting for the stats screen. */
+  /** Finished games counted on the stats screen. */
   gamesRecorded: number
   onResume: () => void
   onPlaySolo: () => void
   onPassAndPlay: () => void
+  onStats: () => void
   onSettings: () => void
   onAccount: () => void
 }
@@ -23,6 +24,7 @@ export function HomeScreen({
   onResume,
   onPlaySolo,
   onPassAndPlay,
+  onStats,
   onSettings,
   onAccount,
 }: HomeScreenProps) {
@@ -82,16 +84,17 @@ export function HomeScreen({
           <span className="sub">Not built yet</span>
         </button>
 
-        {/* Still unbuilt, but games are being banked for it now — so say what
-            is actually there rather than implying nothing is happening. */}
-        <button type="button" className="btn tall" disabled>
+        {/* Left enabled with nothing recorded: the screen itself explains what
+            will show up, which beats a dead button that explains nothing. */}
+        <button type="button" className="btn tall" onClick={onStats}>
           <span>Stats</span>
           <span className="sub">
             {gamesRecorded === 0
-              ? 'Not built yet — finished games will be saved'
-              : `Not built yet — ${gamesRecorded} ${
-                  gamesRecorded === 1 ? 'game' : 'games'
-                } saved so far`}
+              ? 'Nothing counted yet — finish a game'
+              : /* "Saved" rather than "counted": pass-and-play games are saved
+                   but can't count towards a record, so the stats screen shows a
+                   smaller number and the two would otherwise contradict. */
+                `${gamesRecorded} ${gamesRecorded === 1 ? 'game' : 'games'} saved`}
           </span>
         </button>
       </div>

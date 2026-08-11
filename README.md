@@ -12,7 +12,8 @@ The full intent, so it isn't only in someone's head:
 
 - **Home screen** — start a new game, resume one in progress, reach stats.
 - **Solo vs. computer** — play the AI, in either an open (untimed) or timed
-  game: 15 seconds to pick a piece, then 15 seconds to place it.
+  game: a budget to pick a piece, then the same again to place it. Fifteen
+  seconds each by default, and settable between 5 and 120.
 - **Async online play against friends** — games persist and resume across
   sessions, so two people can trade moves over days rather than sitting down
   together.
@@ -35,16 +36,16 @@ The full intent, so it isn't only in someone's head:
 | Rules engine | Done — placement legality, turn order, pass-out, scoring |
 | Pass-and-play on one device | Done |
 | Home screen and navigation | Done |
-| Computer opponent | Done — hard by default, easy and medium in settings |
-| Solo setup (colour) | Done |
+| Computer opponent | Done — a strength slider, at the top of the scale by default |
+| Solo setup (colour) | Done — who opens is drawn at random |
 | Saved game that survives a refresh | Done |
-| Settings screen | Done — live scores, difficulty |
+| Settings screen | Done — live scores, strength, turn length |
 | Live scores during play | Done — off by default |
-| Recording finished games | Done — banked for stats |
+| Recording finished games | Done — every finished game is summarised |
 | Accounts and usernames | Done — live on Firebase |
-| Timed mode | Done — solo games, 15s to pick and 15s to place |
+| Timed mode | Done — solo games, two clocks a turn, length configurable |
+| Stats screen | Done — solo games only; per-friend records need online play |
 | Online play against friends | Not started |
-| Stats screen | Not started |
 
 ## Rules as implemented
 
@@ -80,7 +81,8 @@ src/
   components/    Board, piece tray, piece icon, score strip
   session.ts     What a game is and how it is saved
   settings.ts    Preferences that outlive a game
-  history.ts     Finished games, kept for the stats screen
+  history.ts     Finished games, summarised as they end
+  stats.ts       Turns those summaries into the figures on the stats screen
   account.ts     Who you are on this device, and the username rules
   signIn.ts      Claiming, adopting and renaming
   sync.ts        Pushing finished games up to your account
@@ -90,6 +92,29 @@ src/
 
 The engine is deliberately free of React so it can be tested directly and later
 reused by a server.
+
+### How the stats are worked out
+
+Only solo games count towards a personal record. In pass-and-play all four seats
+are people sharing one phone, so the record has no way to say which player was
+you; those games are counted separately and stated as such rather than dropped
+silently.
+
+Two of the figures deserve their reasoning written down.
+
+**Favourite piece** is the piece you place *more often than your opponents do in
+the same games*, not the piece you place most. A plain count would name the
+monomino for everybody — a single square fits anywhere, so it is the one that
+reliably gets down, and the answer would say more about Blokus than about you.
+Measuring against the other three seats in the very same games cancels that
+baseline out, since every piece is equally easy for them too.
+
+**Left behind most** is the opposite: a plain count, on purpose. The piece you
+are stuck with is usually one everybody struggles to place, so subtracting their
+struggle would hide it behind something rarer — and "most" has to mean most.
+
+Neither is shown until three games are in. Below that, any piece you happened to
+place twice ties for first, and the answer would change completely each game.
 
 ### How the computer plays
 

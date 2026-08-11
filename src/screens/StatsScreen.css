@@ -1,0 +1,235 @@
+/* Long enough to scroll on a phone, unlike the other secondary screens. */
+.stats {
+  gap: 26px;
+  overflow-y: auto;
+}
+
+.stats .note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+/* Pushed to the right of the title, so it reads as "whose stats" not a subtitle. */
+.whose {
+  margin-left: auto;
+  font-size: 14px;
+  color: #93c5fd;
+}
+
+.stats .empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.stats .empty .btn {
+  margin-top: 14px;
+  align-items: center;
+}
+
+/*
+ * Two across on the narrowest phone. A third tile on a row of two ends up alone
+ * on the second row, which is why the sections here are built as four tiles or
+ * three — never five.
+ */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+.tile.wide {
+  grid-column: 1 / -1;
+}
+
+.tile.accent {
+  border-color: #1d4ed8;
+  background: #111f3d;
+}
+
+.tile-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  /* Tabular figures so a column of numbers lines up down the page. */
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.tile-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tile.accent .tile-sub {
+  color: #93c5fd;
+}
+
+.colour-list,
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.colour-list li {
+  display: grid;
+  /* Dot, name, count, then the bar spanning the full width underneath. */
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px;
+}
+
+.colour-name {
+  font-size: 15px;
+}
+
+.colour-count {
+  font-size: 13px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 2px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  /* A zero-width fill would vanish; the track alone reads as "none won". */
+  min-width: 0;
+}
+
+.piece-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+/* A fixed box, so a one-square piece and a five-long one don't shunt the text
+   to different places on two cards sitting one above the other. */
+.piece-art {
+  flex: 0 0 66px;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.piece-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.piece-heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #64748b;
+}
+
+.piece-text strong {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.piece-text .sub {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.recent-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-top: 1px solid #131c2e;
+}
+
+.recent-list li:first-child {
+  border-top: none;
+}
+
+.recent-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.outcome {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.outcome.win {
+  color: #4ade80;
+}
+
+.outcome.draw {
+  color: #fbbf24;
+}
+
+.outcome.loss {
+  color: #cbd5e1;
+}
+
+.recent-sub {
+  font-size: 12px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-date {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
