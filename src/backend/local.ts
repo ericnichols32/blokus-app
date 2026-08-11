@@ -1,5 +1,7 @@
 import type { GameRecord } from '../history'
 import { normalizeUsername } from '../account'
+import type { OnlineGame } from '../online'
+import { StaleGameError } from './types'
 import type { Backend, PlayerProfile } from './types'
 
 /**
@@ -45,11 +47,33 @@ export function createLocalBackend(): Backend {
     async listGames(playerId) {
       return readGames()[playerId] ?? []
     },
+
+    async createOnlineGame(game) {
+      writeOnline([...readOnline().filter((g) => g.id !== game.id), game])
+    },
+
+    async getOnlineGame(gameId) {
+      return readOnline().find((g) => g.id === gameId) ?? null
+    },
+
+    async listOnlineGames(playerId) {
+      return readOnline().filter((g) => g.playerIds.includes(playerId))
+    },
+
+    async submitOnlineTurn(game, expectedMoveCount) {
+      const games = readOnline()
+      const stored = games.find((g) => g.id === game.id)
+      // Same check the real store makes, so the stale-game path is exercised by
+      // anyone developing without Firebase keys rather than only in production.
+      if (stored && stored.moves.length !== expectedMoveCount) throw new StaleGameError()
+      writeOnline([...games.filter((g) => g.id !== game.id), game])
+    },
   }
 }
 
 const PLAYERS_KEY = 'blokus:local-backend:players:v1'
 const GAMES_KEY = 'blokus:local-backend:games:v1'
+const ONLINE_KEY = 'blokus:local-backend:online:v1'
 
 function readPlayers(): PlayerProfile[] {
   const parsed = readJson(PLAYERS_KEY)
@@ -72,6 +96,25 @@ function readGames(): Record<string, GameRecord[]> {
 
 function writeGames(games: Record<string, GameRecord[]>): void {
   writeJson(GAMES_KEY, games)
+}
+
+/**
+ * Online games in this mode are only ever visible to this one browser, so an
+ * "online" game here is really a game against yourself. That is still worth
+ * having: it exercises every path — seating, turns, the stale-write check —
+ * without keys.
+ */
+function readOnline(): OnlineGame[] {
+  const parsed = readJson(ONLINE_KEY)
+  if (!Array.isArray(parsed)) return []
+  return parsed.filter(
+    (g): g is OnlineGame =>
+      !!g && typeof g.id === 'string' && Array.isArray(g.moves) && Array.isArray(g.playerIds),
+  )
+}
+
+function writeOnline(games: OnlineGame[]): void {
+  writeJson(ONLINE_KEY, games)
 }
 
 function readJson(key: string): unknown {

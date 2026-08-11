@@ -1,4 +1,5 @@
 import type { GameRecord } from '../history'
+import type { OnlineGame } from '../online'
 
 /**
  * The shared store, as the app sees it.
@@ -35,6 +36,34 @@ export interface Backend {
 
   /** Every game filed under a player, newest last. */
   listGames(playerId: string): Promise<GameRecord[]>
+
+  /** Puts a newly made online game where everyone in it can find it. */
+  createOnlineGame(game: OnlineGame): Promise<void>
+
+  /** One online game as the store currently holds it, or null if it has gone. */
+  getOnlineGame(gameId: string): Promise<OnlineGame | null>
+
+  /** Every online game this player is seated in. */
+  listOnlineGames(playerId: string): Promise<OnlineGame[]>
+
+  /**
+   * Appends a turn to an online game.
+   *
+   * `expectedMoveCount` is how many moves the caller believed were already
+   * played. The store must reject the write if the game has moved on since —
+   * two devices open on the same game is the normal case, not the exception, and
+   * a blind overwrite would silently erase somebody's turn. Throws
+   * `StaleGameError` in that case, and the caller re-reads and tries again.
+   */
+  submitOnlineTurn(game: OnlineGame, expectedMoveCount: number): Promise<void>
+}
+
+/** Thrown when a turn is written against a game that has already moved on. */
+export class StaleGameError extends Error {
+  constructor(message = 'That game has moved on. Opening it again will show the latest board.') {
+    super(message)
+    this.name = 'StaleGameError'
+  }
 }
 
 export interface PlayerProfile {

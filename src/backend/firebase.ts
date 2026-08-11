@@ -1,18 +1,23 @@
 import { normalizeUsername } from '../account'
 import type { GameRecord } from '../history'
+import type { OnlineGame } from '../online'
 import type { FirebaseConfig } from './config'
+import { StaleGameError } from './types'
 import type { Backend } from './types'
 
 /**
  * The shared store, on Firestore.
  *
- * Three collections:
+ * Four collections:
  *
  * - `usernames/{lowercased}` → `{ playerId }`. The name-to-person mapping, kept
  *   separate from the person so that renaming is two small writes rather than
  *   moving every game a player has ever played.
  * - `players/{playerId}` → the profile.
  * - `players/{playerId}/games/{gameId}` → one finished game each.
+ * - `onlineGames/{gameId}` → a game in progress against friends. Top level
+ *   rather than under a player, because it belongs to everyone in it; each
+ *   carries a flat `playerIds` array so "my games" is one array-contains query.
  *
  * The whole SDK is imported dynamically. It is far larger than the rest of the
  * app, and nothing about playing the computer needs it, so it is fetched the
@@ -84,6 +89,49 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
         fs.query(fs.collection(db, 'players', playerId, 'games'), fs.orderBy('finishedAt')),
       )
       return snap.docs.map((d) => d.data() as GameRecord)
+    },
+
+    async createOnlineGame(game) {
+      const { db, fs } = await connect(config)
+      await fs.setDoc(fs.doc(db, 'onlineGames', game.id), game)
+    },
+
+    async getOnlineGame(gameId) {
+      const { db, fs } = await connect(config)
+      const snap = await fs.getDoc(fs.doc(db, 'onlineGames', gameId))
+      return snap.exists() ? (snap.data() as OnlineGame) : null
+    },
+
+    async listOnlineGames(playerId) {
+      const { db, fs } = await connect(config)
+      // array-contains is why playerIds exists as a flat array: Firestore cannot
+      // query "any of these four map fields equals playerId".
+      const snap = await fs.getDocs(
+        fs.query(
+          fs.collection(db, 'onlineGames'),
+          fs.where('playerIds', 'array-contains', playerId),
+          fs.orderBy('updatedAt', 'desc'),
+        ),
+      )
+      return snap.docs.map((d) => d.data() as OnlineGame)
+    },
+
+    async submitOnlineTurn(game, expectedMoveCount) {
+      const { db, fs } = await connect(config)
+      const ref = fs.doc(db, 'onlineGames', game.id)
+
+      // A transaction rather than a plain write, because two friends with the app
+      // open is the ordinary case: whoever commits second must be told their
+      // board was stale instead of overwriting the turn that landed first.
+      await fs.runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref)
+        if (!snap.exists()) throw new StaleGameError('That game is no longer there.')
+
+        const stored = snap.data() as OnlineGame
+        if ((stored.moves?.length ?? 0) !== expectedMoveCount) throw new StaleGameError()
+
+        tx.set(ref, game)
+      })
     },
   }
 }

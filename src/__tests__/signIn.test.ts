@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetBackend } from '../backend'
+import { stubBackend } from './helpers/backendStub'
 import { createLocalBackend } from '../backend/local'
 import { checkUsername, claim } from '../signIn'
 
@@ -106,14 +107,11 @@ describe('changing your name', () => {
 
 describe('when the server is unreachable', () => {
   it('reports something a player can act on', async () => {
-    resetBackend({
-      kind: 'firebase',
-      lookupUsername: () => Promise.reject(Object.assign(new Error('x'), { code: 'unavailable' })),
-      claimUsername: () => Promise.resolve(),
-      getPlayer: () => Promise.resolve(null),
-      saveGame: () => Promise.resolve(),
-      listGames: () => Promise.resolve([]),
-    })
+    resetBackend(
+      stubBackend({
+        lookupUsername: () => Promise.reject(Object.assign(new Error('x'), { code: 'unavailable' })),
+      }),
+    )
 
     const check = await checkUsername('eric')
     expect(check.status).toBe('error')
