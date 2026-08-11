@@ -30,25 +30,57 @@ import type { Session } from './session'
 export class OnlineError extends Error {}
 
 /**
- * Whether the store refused the request rather than failing to answer it.
+ * Why a request failed, in the only three flavours worth telling a player apart.
  *
- * Worth telling apart, because the two need opposite responses and look
- * identical from the outside: a dropped connection is fixed by trying again, and
- * a refusal never is. Collapsing both into "try again" once sent somebody round
- * a loop retrying a write that the security rules were never going to allow.
+ * The distinction earns its keep: a dropped connection is fixed by trying again
+ * and the other two never are, yet all three look identical from the outside.
+ * Reporting everything as "check your connection" sent somebody retrying a write
+ * the security rules would never allow, and then a second time against a
+ * document shape the database will never accept.
  */
-function isRefusal(error: unknown): boolean {
-  const code = (error as { code?: unknown })?.code
+type FailureKind =
+  /** The rules said no. */
+  | 'refused'
+  /** The database understood and rejected it — a bug here, not a rule. */
+  | 'rejected'
+  /** No answer came back. */
+  | 'unreachable'
+
+function classify(error: unknown): FailureKind {
+  const code = String((error as { code?: unknown })?.code ?? '')
   const message = String((error as { message?: unknown })?.message ?? '')
-  return code === 'permission-denied' || /permission|insufficient|denied/i.test(message)
+
+  if (code.endsWith('permission-denied') || /permission|insufficient|denied/i.test(message)) {
+    return 'refused'
+  }
+  // invalid-argument is a malformed document; failed-precondition is usually a
+  // query needing an index. Both are ours to fix and neither improves by waiting.
+  if (
+    code.endsWith('invalid-argument') ||
+    code.endsWith('failed-precondition') ||
+    /nested arrays|requires an index/i.test(message)
+  ) {
+    return 'rejected'
+  }
+  return 'unreachable'
 }
 
 /**
- * The same failure said two ways. `refused` names a setup problem the player
- * cannot fix by waiting; `offline` is the ordinary flaky-connection case.
+ * `refused` names the rules; `offline` is the ordinary flaky-connection case. A
+ * rejection gets a fixed line of its own, because there is nothing useful a
+ * player can do about it and pretending otherwise wastes their time.
  */
 function failure(error: unknown, refused: string, offline: string): OnlineError {
-  return new OnlineError(isRefusal(error) ? refused : offline)
+  switch (classify(error)) {
+    case 'refused':
+      return new OnlineError(refused)
+    case 'rejected':
+      return new OnlineError(
+        "The database turned that down as malformed. That's a bug in the app rather than anything you did — trying again won't help.",
+      )
+    default:
+      return new OnlineError(offline)
+  }
 }
 
 /**

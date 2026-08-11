@@ -110,6 +110,32 @@ describe('resolveParticipants', () => {
     await expect(resolveParticipants(me, ['dave'])).rejects.toThrow(/rules may not be published/)
   })
 
+  it('says a malformed request is the app\'s fault, not the connection', async () => {
+    // The nested-array bug: every move write came back invalid-argument, and was
+    // reported as a connection problem, so it looked worth retrying forever.
+    resetBackend(
+      stubBackend({
+        lookupUsername: () =>
+          Promise.reject(Object.assign(new Error('Nested arrays are not allowed'), {
+            code: 'invalid-argument',
+          })),
+      }),
+    )
+    await expect(resolveParticipants(me, ['dave'])).rejects.toThrow(/bug in the app/)
+  })
+
+  it('treats a query needing an index the same way', async () => {
+    resetBackend(
+      stubBackend({
+        listOnlineGames: () =>
+          Promise.reject(Object.assign(new Error('The query requires an index.'), {
+            code: 'failed-precondition',
+          })),
+      }),
+    )
+    await expect(loadGames('p-eric')).rejects.toThrow(/bug in the app/)
+  })
+
   it('says the server is unreachable rather than that the name is wrong', async () => {
     // Two very different problems, and telling a player their friend doesn't
     // exist when the connection dropped would send them chasing the wrong thing.
@@ -175,10 +201,15 @@ describe('takeTurn', () => {
     const game = await startGame(me, ['dave', 'sam'], 'computer', S.hard)
     const player = onTurn(game)
 
+    const before = game.moves.length
     const after = await takeTurn(game, player, legalMove(game))
 
-    expect(after.moves.length).toBe(game.moves.length + 1)
-    expect((await refreshGame(game.id)).moves.length).toBe(after.moves.length)
+    // More than one may land: a turn played in front of the computer carries its
+    // reply in the same write, and whether that happens depends on the draw.
+    expect(after.moves.length).toBeGreaterThan(before)
+    expect(after.moves[before].color).toBe(colorToPlay(stateOf(game)))
+    // What came back is exactly what the store now holds.
+    expect((await refreshGame(game.id)).moves).toEqual(after.moves)
   })
 
   it('refuses a stale turn and brings back the board that won', async () => {

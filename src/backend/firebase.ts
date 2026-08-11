@@ -1,9 +1,10 @@
 import { normalizeUsername } from '../account'
 import type { GameRecord } from '../history'
-import type { OnlineGame } from '../online'
 import type { FirebaseConfig } from './config'
 import { StaleGameError } from './types'
 import type { Backend } from './types'
+import { fromStored, toStored } from './wire'
+import type { StoredOnlineGame } from './wire'
 
 /**
  * The shared store, on Firestore.
@@ -18,6 +19,8 @@ import type { Backend } from './types'
  * - `onlineGames/{gameId}` → a game in progress against friends. Top level
  *   rather than under a player, because it belongs to everyone in it; each
  *   carries a flat `playerIds` array so "my games" is one array-contains query.
+ *   Written through `wire.ts`, because a move's cells are an array of pairs and
+ *   Firestore will not store an array inside an array.
  *
  * The whole SDK is imported dynamically. It is far larger than the rest of the
  * app, and nothing about playing the computer needs it, so it is fetched the
@@ -93,13 +96,13 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
 
     async createOnlineGame(game) {
       const { db, fs } = await connect(config)
-      await fs.setDoc(fs.doc(db, 'onlineGames', game.id), game)
+      await fs.setDoc(fs.doc(db, 'onlineGames', game.id), toStored(game))
     },
 
     async getOnlineGame(gameId) {
       const { db, fs } = await connect(config)
       const snap = await fs.getDoc(fs.doc(db, 'onlineGames', gameId))
-      return snap.exists() ? (snap.data() as OnlineGame) : null
+      return snap.exists() ? fromStored(snap.data() as StoredOnlineGame) : null
     },
 
     async listOnlineGames(playerId) {
@@ -115,7 +118,7 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
       const snap = await fs.getDocs(
         fs.query(fs.collection(db, 'onlineGames'), fs.where('playerIds', 'array-contains', playerId)),
       )
-      return snap.docs.map((d) => d.data() as OnlineGame)
+      return snap.docs.map((d) => fromStored(d.data() as StoredOnlineGame))
     },
 
     async submitOnlineTurn(game, expectedMoveCount) {
@@ -129,10 +132,10 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
         const snap = await tx.get(ref)
         if (!snap.exists()) throw new StaleGameError('That game is no longer there.')
 
-        const stored = snap.data() as OnlineGame
+        const stored = snap.data() as StoredOnlineGame
         if ((stored.moves?.length ?? 0) !== expectedMoveCount) throw new StaleGameError()
 
-        tx.set(ref, game)
+        tx.set(ref, toStored(game))
       })
     },
   }
