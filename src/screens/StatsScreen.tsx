@@ -66,15 +66,17 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
           <p className="empty-title">No games to count yet</p>
           <p className="empty-sub">
             Finish a game against the computer and it lands here — wins, pieces left, the pieces you
-            favour, and how you do with each colour.
+            favor, and how you do with each color.
           </p>
           {stats.sharedGames > 0 && (
             /* Otherwise the home screen saying games are saved, next to a stats
                screen saying there are none, reads as a bug rather than a rule. */
             <p className="empty-sub">
-              {stats.sharedGames === 1 ? 'One pass-and-play game is' : `${stats.sharedGames} pass-and-play games are`}{' '}
-              saved, but with four people sharing a phone there is no way to tell which player was
-              you — so they can't count towards a record.
+              {stats.sharedGames === 1
+                ? 'One older game is saved'
+                : `${stats.sharedGames} older games are saved`}{' '}
+              from back when four people could share one phone. Nothing in those records says which
+              player was you, so they can't count towards a record.
             </p>
           )}
           <button type="button" className="btn primary tall" onClick={onPlaySolo}>
@@ -102,19 +104,19 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
           <section>
             <h2>Your game</h2>
             <div className="tiles">
+              {/* Two halves of the same idea, side by side and worded the same
+                  way, so the pair reads as one measurement at two scales. One
+                  decimal on pieces because the number is small enough for the
+                  fraction to matter; squares are whole, where it would be noise. */}
               <Tile
                 value={stats.averagePiecesLeft?.toFixed(1) ?? '—'}
-                label="Pieces left, on average"
-                sub={
-                  stats.averageSquaresLeft === null
-                    ? undefined
-                    : `${stats.averageSquaresLeft.toFixed(0)} squares`
-                }
+                label="Pieces left"
+                sub="average per game"
               />
               <Tile
-                value={stats.bestScore ?? '—'}
-                label="Best score"
-                sub={stats.bestScore !== null && stats.bestScore > 0 ? 'a clean sweep' : undefined}
+                value={stats.averageSquaresLeft?.toFixed(0) ?? '—'}
+                label="Squares left"
+                sub="average per game"
               />
               {/* Third of three, so it takes the whole row rather than sitting
                   on its own next to a gap. */}
@@ -129,13 +131,13 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
           </section>
 
           <section>
-            <h2>Colours</h2>
-            <ul className="colour-list">
+            <h2>Colors</h2>
+            <ul className="color-list">
               {stats.colors.map((tally) => (
                 <li key={tally.color}>
                   <span className="dot" style={{ background: COLOR_HEX[tally.color] }} />
-                  <span className="colour-name">{COLOR_LABEL[tally.color]}</span>
-                  <span className="colour-count">
+                  <span className="color-name">{COLOR_LABEL[tally.color]}</span>
+                  <span className="color-count">
                     {tally.won} of {tally.played} won
                   </span>
                   <span className="bar" aria-hidden="true">
@@ -152,7 +154,7 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             </ul>
             {stats.favoriteColor && stats.colors.length > 1 && (
               <p className="note">
-                You play {COLOR_LABEL[stats.favoriteColor].toLowerCase()} more than any other colour.
+                You play {COLOR_LABEL[stats.favoriteColor].toLowerCase()} more than any other color.
               </p>
             )}
           </section>
@@ -161,14 +163,14 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             <h2>Pieces</h2>
             {stats.favoritePiece === null ? (
               <p className="note">
-                Your favourite piece needs {MIN_GAMES_FOR_FAVORITES} games to mean anything — {stats.games}{' '}
+                Your favorite piece needs {MIN_GAMES_FOR_FAVORITES} games to mean anything — {stats.games}{' '}
                 so far. With fewer than that, any piece you happen to have placed twice ties for
                 first.
               </p>
             ) : (
               <div className="stack">
                 <PieceCard
-                  heading="Favourite piece"
+                  heading="Favorite piece"
                   tally={stats.favoritePiece}
                   color={inkColor}
                   detail={favoriteDetail(stats.favoritePiece, stats.games)}
@@ -201,9 +203,9 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             <p className="note">
               Per-friend records — who you beat and who beats you — arrive with online play.
               {stats.sharedGames > 0 &&
-                ` ${stats.sharedGames} pass-and-play ${
+                ` ${stats.sharedGames} older ${
                   stats.sharedGames === 1 ? 'game is' : 'games are'
-                } saved too, but with four people on one phone there is no way to tell which player was you, so they stay out of the figures above.`}
+                } saved from when four people could share one phone; nothing in those records says which player was you, so they stay out of the figures above.`}
             </p>
           </section>
         </>

@@ -7,7 +7,6 @@ import { SoloSetupScreen } from './screens/SoloSetupScreen'
 import { StatsScreen } from './screens/StatsScreen'
 import {
   clearSession,
-  createPassAndPlay,
   createSolo,
   drawFirstColor,
   loadSession,
@@ -113,11 +112,6 @@ function App() {
     setScreen('game')
   }
 
-  function startPassAndPlay() {
-    setSession(createPassAndPlay())
-    setScreen('game')
-  }
-
   function playAgain() {
     if (!session) return
     // Same opponents, fresh board. Strength comes from the seats rather than
@@ -128,11 +122,9 @@ function App() {
     const strength =
       Object.values(seats).find((s) => s.kind === 'computer')?.strength ?? settings.strength
 
-    if (session.mode === 'solo' && humanColor) {
-      // A fresh draw for who opens, the same as any other new game — carrying
-      // the last one over would hand the same player the advantage every round.
-      setSession(createSolo(humanColor, strength, session.timed, drawFirstColor()))
-    } else setSession(createPassAndPlay())
+    // A fresh draw for who opens, the same as any other new game — carrying the
+    // last one over would hand the same player the advantage every round.
+    if (humanColor) setSession(createSolo(humanColor, strength, session.timed, drawFirstColor()))
   }
 
   function signedIn(next: Account) {
@@ -219,7 +211,6 @@ function App() {
       gamesRecorded={history.length}
       onResume={() => setScreen('game')}
       onPlaySolo={() => setScreen('solo-setup')}
-      onPassAndPlay={startPassAndPlay}
       onStats={() => setScreen('stats')}
       onSettings={() => setScreen('settings')}
       onAccount={() => setScreen('account')}

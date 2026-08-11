@@ -72,13 +72,13 @@ describe('replayMoves', () => {
     expect(replayMoves(COLORS, final.placedPieces)).toEqual(final)
   })
 
-  it('is fast enough to run on every undo', () => {
+  it('is fast enough to rebuild a game on demand', () => {
     const final = playUpTo(Infinity).pop()!
     const start = performance.now()
     for (let i = 0; i < 10; i++) replayMoves(COLORS, final.placedPieces)
     const perReplay = (performance.now() - start) / 10
 
-    // A full game is the worst case; undo has to feel instant.
+    // A full game is the worst case, and rebuilding one has to feel instant.
     expect(perReplay).toBeLessThan(150)
   })
 })

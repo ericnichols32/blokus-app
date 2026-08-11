@@ -1,4 +1,4 @@
-import { BOARD_SIZE, COLORS, createGame, readStrength, replayMoves } from './game'
+import { BOARD_SIZE, COLORS, createGame, readStrength } from './game'
 import type { Color, GameState, Strength } from './game'
 
 /**
@@ -22,7 +22,12 @@ export interface Seat {
   strength?: Strength
 }
 
-export type GameMode = 'solo' | 'pass-and-play'
+/**
+ * Only one mode now that pass-and-play is gone. Kept as a named type because
+ * online play adds to it, and because saved games and recorded games both carry
+ * the value.
+ */
+export type GameMode = 'solo'
 
 export interface Session {
   /** Identifies this game, so a finished one is only recorded to history once. */
@@ -62,12 +67,6 @@ export function drawFirstColor(random: () => number = Math.random): Color {
   return COLORS[Math.floor(random() * COLORS.length)]
 }
 
-export function createPassAndPlay(): Session {
-  const seats = {} as Record<Color, Seat>
-  for (const color of COLORS) seats[color] = { kind: 'human' }
-  return { id: newGameId(), mode: 'pass-and-play', seats, timed: false, state: createGame(COLORS) }
-}
-
 /**
  * Carries a resumed game's opponents over from when seats named a difficulty
  * instead of a strength. Without this the seats would come back with no strength
@@ -94,7 +93,7 @@ export function loadSession(): Session | null {
     const parsed = JSON.parse(raw) as Session
     const state = parsed?.state
     const looksValid =
-      (parsed?.mode === 'solo' || parsed?.mode === 'pass-and-play') &&
+      parsed?.mode === 'solo' &&
       !!parsed.seats &&
       COLORS.every((c) => parsed.seats[c]?.kind === 'human' || parsed.seats[c]?.kind === 'computer') &&
       Array.isArray(state?.board) &&
@@ -133,37 +132,6 @@ export function clearSession(): void {
   }
 }
 
-/**
- * How many moves would survive an undo: everything from your own most recent
- * move onward is dropped. In a solo game that takes back the computers' replies
- * too, so you land back on your own turn facing the board you actually chose
- * from — undoing one move at a time would just hand the turn straight back to
- * the computer.
- *
- * Null when there is nothing of yours to take back.
- */
-export function undoTarget(session: Session): number | null {
-  const moves = session.state.placedPieces
-  for (let i = moves.length - 1; i >= 0; i--) {
-    if (session.seats[moves[i].color].kind === 'human') return i
-  }
-  return null
-}
-
-export function canUndo(session: Session): boolean {
-  return undoTarget(session) !== null
-}
-
-/** Rewinds to just before your last move, or returns the session untouched. */
-export function undo(session: Session): Session {
-  const target = undoTarget(session)
-  if (target === null) return session
-
-  const colors = session.state.players.map((p) => p.color)
-  const kept = session.state.placedPieces.slice(0, target)
-  return { ...session, state: replayMoves(colors, kept) }
-}
-
 /** True once at least one piece is down and the game hasn't finished. */
 export function isResumable(session: Session): boolean {
   return !session.state.gameOver && session.state.placedPieces.length > 0
@@ -171,6 +139,5 @@ export function isResumable(session: Session): boolean {
 
 export function describeSession(session: Session): string {
   const placed = session.state.placedPieces.length
-  const label = session.mode === 'solo' ? 'Solo game' : 'Pass and play'
-  return `${label} · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
+  return `Solo game · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
 }

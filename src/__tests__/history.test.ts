@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyMove, chooseMove, COLORS, DIFFICULTY_STRENGTH as S } from '../game'
 import type { GameState } from '../game'
 import { clearHistory, loadHistory, recordFinishedGame, summarise } from '../history'
-import { createPassAndPlay, createSolo } from '../session'
+import { createSolo } from '../session'
 import type { Session } from '../session'
 
 vi.setConfig({ testTimeout: 60_000 })
@@ -131,17 +131,8 @@ describe('summarise', () => {
     }
   })
 
-  it('has no "your colour" for a pass-and-play game', () => {
-    const record = summarise(playToEnd(createPassAndPlay()))
-
-    expect(record.mode).toBe('pass-and-play')
-    expect(record.yourColor).toBeNull()
-    expect(record.strength).toBeNull()
-    expect(record.players.every((p) => p.seat === 'human')).toBe(true)
-  })
-
   it('gives players on equal scores the same rank', () => {
-    const finished = playToEnd(createPassAndPlay())
+    const finished = playToEnd(createSolo('blue', S.hard))
     const record = summarise(finished)
 
     const byScore = new Map<number, number[]>()

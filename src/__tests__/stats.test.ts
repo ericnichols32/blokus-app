@@ -115,13 +115,15 @@ describe('the win, draw and loss record', () => {
   })
 })
 
-describe('pass-and-play games', () => {
+describe('legacy games with no attributable seat', () => {
+  // Written by the pass-and-play mode, which the app no longer offers. Records
+  // of them still sit in people's history, so they still have to be handled.
   it('are counted apart, since there is no "you" to credit', () => {
     const stats = computeStats([game({ yourColor: 'blue' }), game({ yourColor: null })])
 
     expect(stats.games).toBe(1)
     expect(stats.sharedGames).toBe(1)
-    // The one shared game must not show up as a win for anybody.
+    // The unattributable game must not show up as a win for anybody.
     expect(stats.wins + stats.draws + stats.losses).toBe(1)
     expect(stats.recent).toHaveLength(1)
   })

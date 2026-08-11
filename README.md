@@ -34,7 +34,6 @@ The full intent, so it isn't only in someone's head:
 | Area | State |
 | --- | --- |
 | Rules engine | Done — placement legality, turn order, pass-out, scoring |
-| Pass-and-play on one device | Done |
 | Home screen and navigation | Done |
 | Computer opponent | Done — a strength slider, at the top of the scale by default |
 | Solo setup (colour) | Done — who opens is drawn at random |
@@ -95,10 +94,10 @@ reused by a server.
 
 ### How the stats are worked out
 
-Only solo games count towards a personal record. In pass-and-play all four seats
-are people sharing one phone, so the record has no way to say which player was
-you; those games are counted separately and stated as such rather than dropped
-silently.
+A game only counts towards a personal record if the record says which seat was
+yours. Games written by the old pass-and-play mode don't: four people shared one
+phone, so there was no way to say which player was you. Those records still load
+and are counted separately, stated as such rather than dropped silently.
 
 Two of the figures deserve their reasoning written down.
 
@@ -184,13 +183,16 @@ is one drag surface, pressing anywhere on it picks the piece back up, so a piece
 dropped somewhere illegal can always be moved rather than stranded. Letting go
 away from the board returns it to the tray. Rotate and Flip work at any point.
 
-**Turning the board** follows the turn in pass and play, so each player looks at
-it from their own corner. In a solo game it is fixed to your own seat.
+**Turning the board** sits at your own seat's angle, so your home corner is
+always nearest you, and the ⟳ button in the header turns it a further quarter at
+a time. The angle underneath is fixed for the whole game — it followed the turn
+under pass and play, where the phone changed hands.
 
 ### The clock
 
 A solo game can be timed, chosen when you start it. Each of your turns is two
-budgets of fifteen seconds: one to get a piece in hand, one to get it down.
+budgets of the length set in settings — fifteen seconds by default: one to get a
+piece in hand, one to get it down.
 The computers are unaffected — they answer in half a second anyway.
 
 Both budgets are **continuous across the whole turn**, not restarted when the

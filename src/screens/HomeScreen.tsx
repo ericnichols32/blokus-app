@@ -11,7 +11,6 @@ interface HomeScreenProps {
   gamesRecorded: number
   onResume: () => void
   onPlaySolo: () => void
-  onPassAndPlay: () => void
   onStats: () => void
   onSettings: () => void
   onAccount: () => void
@@ -23,7 +22,6 @@ export function HomeScreen({
   gamesRecorded,
   onResume,
   onPlaySolo,
-  onPassAndPlay,
   onStats,
   onSettings,
   onAccount,
@@ -74,11 +72,6 @@ export function HomeScreen({
           <span className="sub">You against three opponents</span>
         </button>
 
-        <button type="button" className="btn tall" onClick={onPassAndPlay}>
-          <span>Pass and play</span>
-          <span className="sub">Four players, one device</span>
-        </button>
-
         <button type="button" className="btn tall" disabled>
           <span>Play a friend online</span>
           <span className="sub">Not built yet</span>
@@ -91,9 +84,9 @@ export function HomeScreen({
           <span className="sub">
             {gamesRecorded === 0
               ? 'Nothing counted yet — finish a game'
-              : /* "Saved" rather than "counted": pass-and-play games are saved
-                   but can't count towards a record, so the stats screen shows a
-                   smaller number and the two would otherwise contradict. */
+              : /* "Saved" rather than "counted": games from the old
+                   pass-and-play mode are saved but can't count towards a
+                   record, so the stats screen can show a smaller number. */
                 `${gamesRecorded} ${gamesRecorded === 1 ? 'game' : 'games'} saved`}
           </span>
         </button>

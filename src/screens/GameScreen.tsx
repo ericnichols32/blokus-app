@@ -119,33 +119,23 @@ export function GameScreen({
   const isComputerTurn = currentSeat.kind === 'computer' && !gameState.gameOver
 
   /**
-   * The angle the board sits at. In pass and play that follows the turn, so
-   * whoever picks the phone up is looking at it from their own corner; in solo
-   * it is fixed to your seat, since you are always the same colour.
+   * The angle the board sits at: your own corner nearest you, so the shape in
+   * your hand lands the way it looks. Fixed for the whole game now that every
+   * mode seats one person per device — it followed the turn under pass and play,
+   * where the phone changed hands mid-game.
    */
   const seatRotation = useMemo(() => {
-    if (session.mode === 'solo') {
-      const yours = (Object.keys(session.seats) as Color[]).find(
-        (c) => session.seats[c].kind === 'human',
-      )
-      return rotationFacing(yours ?? currentPlayer.color)
-    }
-    return rotationFacing(currentPlayer.color)
-  }, [session.mode, session.seats, currentPlayer.color])
+    const yours = (Object.keys(session.seats) as Color[]).find(
+      (c) => session.seats[c].kind === 'human',
+    )
+    return rotationFacing(yours ?? currentPlayer.color)
+  }, [session.seats, currentPlayer.color])
 
-  /** Quarter-turns the player has added by hand, on top of their seat's angle. */
-  const [nudge, setNudge] = useState(0)
-
-  /*
-   * Pass and play turns the board to face whoever is holding the phone, so a
-   * hand-turn has to stop applying when the phone changes hands — otherwise one
-   * player straightening the board leaves it crooked for everyone after them.
-   * In solo the seat angle never moves, so the nudge is left alone and behaves
-   * as an outright rotation.
+  /**
+   * Quarter-turns the player has added by hand, on top of their seat's angle.
+   * Never reset, since the angle underneath it no longer moves.
    */
-  useEffect(() => {
-    if (session.mode !== 'solo') setNudge(0)
-  }, [session.mode, currentPlayer.color])
+  const [nudge, setNudge] = useState(0)
 
   const viewRotation = (((seatRotation + nudge) % 4) + 4) % 4 as ViewRotation
 

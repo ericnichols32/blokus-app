@@ -9,7 +9,7 @@ import type { GameMode, SeatKind, Session } from './session'
  *
  * Deliberately a summary rather than the move list. Which pieces a player never
  * placed is enough to derive which ones they did, so every stat asked for —
- * wins, pieces left, perfect games, favourite colour and piece — is answerable
+ * wins, pieces left, perfect games, favorite color and piece — is answerable
  * from this, at roughly a fifteenth of the size. Storing the moves as well
  * would additionally allow replaying a game, which nobody has asked for.
  */
@@ -17,12 +17,17 @@ export interface GameRecord {
   /** The session's id, so replaying a reload cannot record the game twice. */
   id: string
   finishedAt: string
-  mode: GameMode
+  /**
+   * `'pass-and-play'` is a mode the app no longer offers. Records written while
+   * it existed still say so, and they are still real games, so the value stays
+   * readable here rather than being scrubbed out of somebody's history.
+   */
+  mode: GameMode | 'pass-and-play'
   /** The computers' setting in a solo game, on the 0–1 strength scale. */
   strength: Strength | null
   /** Whether the human turns were on a clock. */
   timed: boolean
-  /** Your colour in a solo game; null when every seat was a person. */
+  /** Your color, or null in an old pass-and-play game where every seat was a person. */
   yourColor: Color | null
   /** Total pieces placed by everyone, as a rough measure of how long it ran. */
   movesPlayed: number

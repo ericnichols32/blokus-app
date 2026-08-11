@@ -7,16 +7,16 @@ import type { GameRecord, GameRecordPlayer } from './history'
  * else. Kept out of the component so it can be tested against a handful of made
  * up games rather than by playing them.
  *
- * Only solo games count towards a personal record: in pass-and-play all four
- * seats are people on the same phone, so there is no "you" in the record to
- * attribute a win to. Those games are counted separately rather than silently
- * dropped, so the totals here still add up against the number on the home
- * screen.
+ * A game only counts towards a personal record if the record says which seat
+ * was yours. Games from the old pass-and-play mode don't: four people shared one
+ * phone, so there is no "you" to attribute a win to. They are counted separately
+ * rather than silently dropped, so the totals here still add up against the
+ * number on the home screen.
  */
 export interface Stats {
   /** Solo games — the ones every figure below is drawn from. */
   games: number
-  /** Pass-and-play games in the history, which have no "you" to credit. */
+  /** Games in the history with no attributable seat — all of them legacy. */
   sharedGames: number
   wins: number
   /** Finished level with at least one other player, top of the pile. */
@@ -26,8 +26,9 @@ export interface Stats {
   /** Null rather than zero when there is nothing to average yet. */
   averagePiecesLeft: number | null
   averageSquaresLeft: number | null
+  /** Computed but not currently on the screen — the tile it had gave way to squares left. */
   bestScore: number | null
-  /** One row per colour you have actually played, most-played first. */
+  /** One row per color you have actually played, most-played first. */
   colors: ColorTally[]
   favoriteColor: Color | null
   /**
