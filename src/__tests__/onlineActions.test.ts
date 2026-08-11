@@ -95,6 +95,21 @@ describe('resolveParticipants', () => {
     await expect(resolveParticipants(me, ['  '])).rejects.toThrow(/at least one friend/)
   })
 
+  it('tells a refusal apart from a dropped connection', async () => {
+    // Opposite responses: waiting fixes one and never fixes the other. Told
+    // apart because collapsing both into "try again" sent somebody round a loop
+    // retrying a write the security rules were never going to allow.
+    resetBackend(
+      stubBackend({
+        lookupUsername: () =>
+          Promise.reject(Object.assign(new Error('Missing or insufficient permissions.'), {
+            code: 'permission-denied',
+          })),
+      }),
+    )
+    await expect(resolveParticipants(me, ['dave'])).rejects.toThrow(/rules may not be published/)
+  })
+
   it('says the server is unreachable rather than that the name is wrong', async () => {
     // Two very different problems, and telling a player their friend doesn't
     // exist when the connection dropped would send them chasing the wrong thing.
@@ -122,6 +137,23 @@ describe('startGame', () => {
     const game = await startGame(me, ['dave'], 'computer', S.medium)
     expect(game.seats.red.kind).toBe('computer')
     expect(game.seats.red.strength).toBe(S.medium)
+  })
+
+  it('names the cause when the database refuses the write', async () => {
+    // Exactly what happened on the real project: the rule for the new collection
+    // existed in the repo but had never been published, so every write was
+    // refused while every read worked.
+    resetBackend(
+      stubBackend({
+        lookupUsername: () => Promise.resolve({ playerId: 'p-dave', username: 'dave', createdAt: '' }),
+        createOnlineGame: () =>
+          Promise.reject(Object.assign(new Error('Missing or insufficient permissions.'), {
+            code: 'permission-denied',
+          })),
+      }),
+    )
+
+    await expect(startGame(me, ['dave'], 'double', S.hard)).rejects.toThrow(/rules need publishing/)
   })
 
   it('does not leave a half-made game behind when the write fails', async () => {

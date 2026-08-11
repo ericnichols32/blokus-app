@@ -106,12 +106,14 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
       const { db, fs } = await connect(config)
       // array-contains is why playerIds exists as a flat array: Firestore cannot
       // query "any of these four map fields equals playerId".
+      //
+      // Deliberately not ordered here. An array-contains combined with an orderBy
+      // needs a composite index built by hand in the console before the query
+      // will run at all — and it would buy nothing, because the caller sorts by
+      // whose turn it is first and only then by time. A handful of games per
+      // person is not a page worth of results to trim.
       const snap = await fs.getDocs(
-        fs.query(
-          fs.collection(db, 'onlineGames'),
-          fs.where('playerIds', 'array-contains', playerId),
-          fs.orderBy('updatedAt', 'desc'),
-        ),
+        fs.query(fs.collection(db, 'onlineGames'), fs.where('playerIds', 'array-contains', playerId)),
       )
       return snap.docs.map((d) => d.data() as OnlineGame)
     },

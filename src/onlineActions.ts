@@ -30,6 +30,28 @@ import type { Session } from './session'
 export class OnlineError extends Error {}
 
 /**
+ * Whether the store refused the request rather than failing to answer it.
+ *
+ * Worth telling apart, because the two need opposite responses and look
+ * identical from the outside: a dropped connection is fixed by trying again, and
+ * a refusal never is. Collapsing both into "try again" once sent somebody round
+ * a loop retrying a write that the security rules were never going to allow.
+ */
+function isRefusal(error: unknown): boolean {
+  const code = (error as { code?: unknown })?.code
+  const message = String((error as { message?: unknown })?.message ?? '')
+  return code === 'permission-denied' || /permission|insufficient|denied/i.test(message)
+}
+
+/**
+ * The same failure said two ways. `refused` names a setup problem the player
+ * cannot fix by waiting; `offline` is the ordinary flaky-connection case.
+ */
+function failure(error: unknown, refused: string, offline: string): OnlineError {
+  return new OnlineError(isRefusal(error) ? refused : offline)
+}
+
+/**
  * Turns typed names into the people who will be seated.
  *
  * Names are looked up rather than trusted: a game invented for a username
@@ -61,8 +83,12 @@ export async function resolveParticipants(
     let profile
     try {
       profile = await backend.lookupUsername(name)
-    } catch {
-      throw new OnlineError("Couldn't reach the server to check that name. Try again in a moment.")
+    } catch (error) {
+      throw failure(
+        error,
+        "The database turned that lookup down. The app's online rules may not be published yet.",
+        "Couldn't reach the server to check that name. Try again in a moment.",
+      )
     }
     if (!profile) {
       throw new OnlineError(
@@ -89,8 +115,12 @@ export async function startGame(
 
   try {
     await getBackend().createOnlineGame(game)
-  } catch {
-    throw new OnlineError("Couldn't start the game — the server didn't answer. Try again.")
+  } catch (error) {
+    throw failure(
+      error,
+      "The database won't accept online games yet — its rules need publishing. Nothing you can fix from here.",
+      "Couldn't start the game — the server didn't answer. Try again.",
+    )
   }
 
   return game
@@ -100,8 +130,12 @@ export async function startGame(
 export async function loadGames(playerId: string): Promise<ListEntry[]> {
   try {
     return sortForPlayer(await getBackend().listOnlineGames(playerId), playerId)
-  } catch {
-    throw new OnlineError("Couldn't load your games. Check your connection and try again.")
+  } catch (error) {
+    throw failure(
+      error,
+      "The database won't hand over online games yet — its rules need publishing.",
+      "Couldn't load your games. Check your connection and try again.",
+    )
   }
 }
 
@@ -110,8 +144,12 @@ export async function refreshGame(gameId: string): Promise<OnlineGame> {
   let game: OnlineGame | null
   try {
     game = await getBackend().getOnlineGame(gameId)
-  } catch {
-    throw new OnlineError("Couldn't load that game. Check your connection and try again.")
+  } catch (error) {
+    throw failure(
+      error,
+      "The database won't hand over that game — its rules need publishing.",
+      "Couldn't load that game. Check your connection and try again.",
+    )
   }
   if (!game) throw new OnlineError('That game is no longer there.')
   return game
@@ -138,7 +176,11 @@ export async function takeTurn(
     if (error instanceof StaleGameError) {
       throw new StaleTurnError(error.message, await refreshGame(game.id).catch(() => null))
     }
-    throw new OnlineError("Couldn't save your move. Check your connection and try again.")
+    throw failure(
+      error,
+      "The database refused your move — the app's online rules need publishing.",
+      "Couldn't save your move. Check your connection and try again.",
+    )
   }
 
   return played
