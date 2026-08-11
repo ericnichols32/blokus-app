@@ -40,7 +40,7 @@ The full intent, so it isn't only in someone's head:
 | Settings screen | Done — live scores, difficulty |
 | Live scores during play | Done — off by default |
 | Recording finished games | Done — banked for stats |
-| Accounts and usernames | Not started |
+| Accounts and usernames | Done — needs a Firebase project to leave the device |
 | Timed mode | Not started |
 | Online play against friends | Not started |
 | Stats screen | Not started |
@@ -70,11 +70,19 @@ src/
     engine.ts    Game state, move application, turn advancement
     scoring.ts   End-of-game scoring
     ai.ts        Computer opponent
+  backend/       The shared store, behind one interface
+    types.ts     What the app needs from a server
+    local.ts     Device-only stand-in, used when Firebase isn't configured
+    firebase.ts  Firestore, loaded on demand
+    config.ts    Reads the project's details from the environment
   screens/       One component per screen
   components/    Board, piece tray, piece icon, score strip
   session.ts     What a game is and how it is saved
   settings.ts    Preferences that outlive a game
   history.ts     Finished games, kept for the stats screen
+  account.ts     Who you are on this device, and the username rules
+  signIn.ts      Claiming, adopting and renaming
+  sync.ts        Pushing finished games up to your account
   boardView.ts   Which way up the board is drawn, and the maths both ways
 ```
 
@@ -170,6 +178,96 @@ what went down. The move list is deliberately not kept — it would be roughly
 fifteen times the size and is only needed to replay a game, which nothing does.
 
 The store is capped at 500 games, oldest dropped first.
+
+## Accounts
+
+A username, no password. You are asked for one the first time you open the app,
+once — declining is remembered, and the chip in the top-left corner of the home
+screen is the way back in.
+
+### Why there is no password
+
+Typing a name that already exists **signs you in as that person** rather than
+being refused. That is the whole mechanism: open the link on a second phone,
+type your name, confirm it's you, and your games are there. It is also the only
+recovery there is, since nothing else is stored about you.
+
+The cost is stated plainly: anyone with the link can become anyone. A friend who
+types your name gets your page. That was an explicit choice — the link only goes
+to people you know, and the alternative is passwords or email sign-in, which is
+a great deal of machinery for a game you play with four friends. If the app ever
+goes wider than that, this is the first thing that has to change.
+
+### How it is stored
+
+Two ids, because they do different jobs:
+
+- **`playerId`** is the person. It never changes, and every game is filed under
+  it, so renaming yourself doesn't orphan your history.
+- **`username`** is the label, in a separate `usernames/{lowercased}` mapping.
+  Renaming is two small writes — release the old, take the new — rather than
+  moving every game you've ever played.
+
+Names match without regard to capitals (`@Eric` and `@eric` are one person), but
+the capitals you typed are what everyone sees.
+
+Finished games are pushed up by `sync.ts`, which records what has already landed
+so a dropped connection retries only the rest. The first sync after signing in
+carries **everything played before there was an account**, so nothing you played
+while deciding is lost.
+
+`sync.ts` also registers a name the server has never heard of. A name claimed
+while the app was device-only — before the Firebase project existed, or just
+offline — was written to the phone and nowhere else, so a friend could later
+claim the same name and become a *different* person under it, with both of them
+believing they were `@eric`. The first sync that reaches a server closes that.
+A name somebody else already holds is left alone rather than taken back;
+re-asserting on every load would be a tug of war neither side could see.
+
+### Setting up the Firebase project
+
+Until this is done the app still works — it just keeps usernames on the device,
+shares nothing, and says so on the sign-in screen. Roughly five minutes:
+
+1. At [console.firebase.google.com](https://console.firebase.google.com), create
+   a project. Turn Google Analytics **off**; nothing here uses it. The free
+   (Spark) plan is enough, and no card is needed.
+2. **Build → Firestore Database → Create database.** Pick a region near you and
+   start in **production mode** — the rules get replaced in step 4 anyway, and
+   test mode expires after 30 days and would break accounts without warning.
+3. **Build → Authentication → Get started → Anonymous → Enable.** This does not
+   identify anyone; it exists so the rules can require a caller that came
+   through the app. See the comment at the top of `firestore.rules`.
+4. **Firestore Database → Rules**, paste in the contents of `firestore.rules`
+   from this repo, and publish.
+5. **Project settings → General → Your apps → Web (`</>`)**, register the app,
+   and copy the four values out of the `firebaseConfig` block it shows you.
+6. `cp .env.example .env.local`, fill in those four, restart `npm run dev`.
+7. For the deployed site, add the same four as repository secrets:
+
+   ```sh
+   gh secret set VITE_FIREBASE_API_KEY
+   gh secret set VITE_FIREBASE_AUTH_DOMAIN
+   gh secret set VITE_FIREBASE_PROJECT_ID
+   gh secret set VITE_FIREBASE_APP_ID
+   ```
+
+8. **Authentication → Settings → Authorized domains**, add
+   `ericnichols32.github.io`, or sign-in will be refused on the live site.
+
+Those four values are not secrets. A Firebase web config ships inside the
+JavaScript bundle wherever you keep it, and Google documents it as public —
+`firestore.rules` is what guards the data. They sit in the environment so the
+project can be swapped without a commit, not to hide them.
+
+The Firebase SDK is imported dynamically. It is the largest thing in the build
+by some way — around 560 kB against 227 kB for the whole rest of the app — and
+keeping it off the startup path means it is never parsed or executed unless an
+account operation happens. Playing the computer doesn't touch it.
+
+Note that this is a saving in startup work rather than in bytes downloaded: the
+service worker precaches every built asset, so an installed copy fetches the SDK
+in the background regardless. That is the trade for the game working offline.
 
 ## Known gaps
 

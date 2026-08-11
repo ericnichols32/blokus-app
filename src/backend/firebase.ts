@@ -1,0 +1,136 @@
+import { normalizeUsername } from '../account'
+import type { GameRecord } from '../history'
+import type { FirebaseConfig } from './config'
+import type { Backend } from './types'
+
+/**
+ * The shared store, on Firestore.
+ *
+ * Three collections:
+ *
+ * - `usernames/{lowercased}` → `{ playerId }`. The name-to-person mapping, kept
+ *   separate from the person so that renaming is two small writes rather than
+ *   moving every game a player has ever played.
+ * - `players/{playerId}` → the profile.
+ * - `players/{playerId}/games/{gameId}` → one finished game each.
+ *
+ * The whole SDK is imported dynamically. It is far larger than the rest of the
+ * app, and nothing about playing the computer needs it, so it is fetched the
+ * first time an account operation happens rather than on load — which also
+ * keeps the game itself working offline.
+ */
+export function createFirebaseBackend(config: FirebaseConfig): Backend {
+  return {
+    kind: 'firebase',
+
+    async lookupUsername(username) {
+      const { db, fs } = await connect(config)
+      const snap = await fs.getDoc(fs.doc(db, 'usernames', normalizeUsername(username)))
+      const playerId = snap.exists() ? (snap.data().playerId as string) : null
+      if (!playerId) return null
+
+      // The mapping is the source of truth for who owns a name, but the profile
+      // is where the capitalisation lives. A mapping whose profile has gone
+      // still identifies the right person, so fall back rather than fail.
+      const player = await this.getPlayer(playerId)
+      return player ?? { playerId, username, createdAt: new Date().toISOString() }
+    },
+
+    async claimUsername(playerId, username, previousUsername) {
+      const { db, fs } = await connect(config)
+      const now = new Date().toISOString()
+      const batch = fs.writeBatch(db)
+
+      // Release the old name first, so a rename doesn't leave you holding two.
+      if (previousUsername && normalizeUsername(previousUsername) !== normalizeUsername(username)) {
+        batch.delete(fs.doc(db, 'usernames', normalizeUsername(previousUsername)))
+      }
+
+      batch.set(fs.doc(db, 'usernames', normalizeUsername(username)), { playerId, updatedAt: now })
+      // merge, so adopting an existing player on a new device refreshes the
+      // name and last-seen time without wiping when they were created.
+      batch.set(
+        fs.doc(db, 'players', playerId),
+        { playerId, username, createdAt: now, lastSeenAt: now },
+        { merge: true },
+      )
+
+      await batch.commit()
+    },
+
+    async getPlayer(playerId) {
+      const { db, fs } = await connect(config)
+      const snap = await fs.getDoc(fs.doc(db, 'players', playerId))
+      if (!snap.exists()) return null
+
+      const data = snap.data()
+      return {
+        playerId,
+        username: (data.username as string) ?? '',
+        createdAt: (data.createdAt as string) ?? new Date().toISOString(),
+      }
+    },
+
+    async saveGame(playerId, record) {
+      const { db, fs } = await connect(config)
+      // Keyed by the game's own id, so writing the same game twice overwrites
+      // rather than duplicating — which is what makes re-syncing safe.
+      await fs.setDoc(fs.doc(db, 'players', playerId, 'games', record.id), record)
+    },
+
+    async listGames(playerId) {
+      const { db, fs } = await connect(config)
+      const snap = await fs.getDocs(
+        fs.query(fs.collection(db, 'players', playerId, 'games'), fs.orderBy('finishedAt')),
+      )
+      return snap.docs.map((d) => d.data() as GameRecord)
+    },
+  }
+}
+
+/**
+ * Starts the SDK on first use and reuses it after.
+ *
+ * Signing in anonymously is not about identifying anyone — the account is the
+ * username, and this uid changes if you clear your browser. It exists so the
+ * security rules can require *some* signed-in caller, which keeps a passing
+ * script from writing to the database. Friends who have the link are all
+ * equally trusted once inside, which is the arrangement asked for.
+ */
+async function connect(config: FirebaseConfig) {
+  connection ??= (async () => {
+    const [{ initializeApp }, auth, fs] = await Promise.all([
+      import('firebase/app'),
+      import('firebase/auth'),
+      import('firebase/firestore'),
+    ])
+
+    const app = initializeApp(config)
+    const db = fs.getFirestore(app)
+
+    try {
+      await auth.signInAnonymously(auth.getAuth(app))
+    } catch (error) {
+      // Anonymous sign-in not enabled on the project, or offline. Let the read
+      // or write proceed and fail on its own terms; the rules will reject it if
+      // that is what's wrong, and the caller reports the failure either way.
+      console.warn('Anonymous sign-in failed; account features may not work.', error)
+    }
+
+    return { db, fs }
+  })()
+
+  try {
+    return await connection
+  } catch (error) {
+    // Don't cache a failed start — a dropped connection on first use would
+    // otherwise leave accounts broken for the rest of the session.
+    connection = null
+    throw error
+  }
+}
+
+let connection: Promise<{
+  db: import('firebase/firestore').Firestore
+  fs: typeof import('firebase/firestore')
+}> | null = null

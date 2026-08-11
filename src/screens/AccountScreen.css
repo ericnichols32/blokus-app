@@ -1,0 +1,83 @@
+.account {
+  gap: 18px;
+}
+
+.account-lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+/* The @ sits inside the field so the name reads as a handle while being typed. */
+.name-field {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+}
+
+.name-field:focus-within {
+  border-color: #2563eb;
+}
+
+.name-field .at {
+  font-size: 22px;
+  color: #64748b;
+}
+
+.name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  border: 0;
+  background: transparent;
+  color: #f8fafc;
+  /* 16px or more, or iOS zooms the whole page in when the field is focused. */
+  font-size: 22px;
+  font-family: inherit;
+  outline: none;
+}
+
+.name-input::placeholder {
+  color: #475569;
+}
+
+.account-error {
+  margin: 0;
+  font-size: 14px;
+  color: #f87171;
+}
+
+.account-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.account-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  /* Clears the home indicator, since this sits at the bottom of the screen. */
+  padding-bottom: 8px;
+}
+
+/* Present but not competing with Continue — declining should be findable
+   without looking like the thing to do. */
+.btn.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: #94a3b8;
+}
+
+.btn.danger {
+  border-color: #7f1d1d;
+  background: transparent;
+  color: #f87171;
+}
