@@ -90,8 +90,8 @@ function App() {
     setSession((current) => (current ? { ...current, state } : current))
   }, [])
 
-  function startSolo(color: Color) {
-    setSession(createSolo(color, settings.difficulty))
+  function startSolo(color: Color, timed: boolean) {
+    setSession(createSolo(color, settings.difficulty, timed))
     setScreen('game')
   }
 
@@ -110,8 +110,9 @@ function App() {
     const difficulty = (Object.values(seats).find((s) => s.kind === 'computer')?.difficulty ??
       settings.difficulty) as Difficulty
 
-    if (session.mode === 'solo' && humanColor) setSession(createSolo(humanColor, difficulty))
-    else setSession(createPassAndPlay())
+    if (session.mode === 'solo' && humanColor) {
+      setSession(createSolo(humanColor, difficulty, session.timed))
+    } else setSession(createPassAndPlay())
   }
 
   function signedIn(next: Account) {

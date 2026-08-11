@@ -11,7 +11,8 @@ TestFlight, no developer account.
 The full intent, so it isn't only in someone's head:
 
 - **Home screen** — start a new game, resume one in progress, reach stats.
-- **Solo vs. computer** — play the AI, in either an open (untimed) or timed game.
+- **Solo vs. computer** — play the AI, in either an open (untimed) or timed
+  game: 15 seconds to pick a piece, then 15 seconds to place it.
 - **Async online play against friends** — games persist and resume across
   sessions, so two people can trade moves over days rather than sitting down
   together.
@@ -41,7 +42,7 @@ The full intent, so it isn't only in someone's head:
 | Live scores during play | Done — off by default |
 | Recording finished games | Done — banked for stats |
 | Accounts and usernames | Done — live on Firebase |
-| Timed mode | Not started |
+| Timed mode | Done — solo games, 15s to pick and 15s to place |
 | Online play against friends | Not started |
 | Stats screen | Not started |
 
@@ -83,6 +84,7 @@ src/
   account.ts     Who you are on this device, and the username rules
   signIn.ts      Claiming, adopting and renaming
   sync.ts        Pushing finished games up to your account
+  turnClock.ts   The two budgets a timed turn is made of
   boardView.ts   Which way up the board is drawn, and the maths both ways
 ```
 
@@ -159,6 +161,42 @@ away from the board returns it to the tray. Rotate and Flip work at any point.
 
 **Turning the board** follows the turn in pass and play, so each player looks at
 it from their own corner. In a solo game it is fixed to your own seat.
+
+### The clock
+
+A solo game can be timed, chosen when you start it. Each of your turns is two
+budgets of fifteen seconds: one to get a piece in hand, one to get it down.
+The computers are unaffected — they answer in half a second anyway.
+
+Both budgets are **continuous across the whole turn**, not restarted when the
+phase changes. Only the active one drains, so putting a piece back freezes the
+placement clock and resumes the selection clock where it left off. This is the
+point rather than an implementation detail: if picking a different piece reset
+the placement clock, a turn could be held open forever by tapping between two of
+them. `turnClock.ts` holds this logic on its own, with no React in it, and
+`turnClock.test.ts` pins the un-gameable property directly.
+
+Running out doesn't cost you the turn:
+
+- **Out of time to pick** — a piece is chosen for you, and the placement clock
+  then gives you the full fifteen seconds. You lost the choice, not the turn.
+  Cancel is disabled from that point, since dropping back into a selection phase
+  with no time left would just re-pick the same piece.
+- **Out of time to place** — if the piece is already sitting somewhere legal,
+  that is where it goes. You did the work and only missed the confirming tap.
+  Otherwise a spot is picked for you.
+
+`chooseTimeoutMove` makes those choices, and is deliberately mediocre rather
+than random: it ranks every legal move on the middling evaluation and takes the
+**median**. Random would hand you an excellent move often enough to make
+ignoring the clock a viable strategy, and a terrible one often enough to feel
+arbitrary. Measured over 20 games, a player who times out every single turn
+finishes about 25 points behind one playing on hard — roughly the same penalty
+as dropping to easy, which is a real cost without being a forfeit.
+
+The countdown is derived from timestamps rather than counted down tick by tick,
+so a phone that sleeps mid-turn comes back with the correct time elapsed instead
+of a clock that paused while you were away.
 
 Settings, reached from the gear on the home screen, holds the live score counter
 (off by default) and the computer's difficulty (hard by default).

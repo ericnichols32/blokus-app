@@ -5,17 +5,19 @@ import type { Color } from '../game'
 import './SoloSetupScreen.css'
 
 interface SoloSetupScreenProps {
-  onStart: (color: Color) => void
+  onStart: (color: Color, timed: boolean) => void
   onCancel: () => void
 }
 
 /**
- * Colour is the only choice here. Difficulty lives in settings and defaults to
- * hard, so starting a game is one decision rather than two.
+ * Colour and the clock. Difficulty lives in settings, because it is a standing
+ * preference; whether you want a timer is a mood you pick per game, so it stays
+ * here where you are already starting one.
  */
 export function SoloSetupScreen({ onStart, onCancel }: SoloSetupScreenProps) {
   // Blue opens in standard Blokus, so it's the friendliest default.
   const [color, setColor] = useState<Color>('blue')
+  const [timed, setTimed] = useState(false)
 
   return (
     <div className="screen inner setup">
@@ -48,7 +50,40 @@ export function SoloSetupScreen({ onStart, onCancel }: SoloSetupScreenProps) {
         </p>
       </section>
 
-      <button type="button" className="btn primary tall" onClick={() => onStart(color)}>
+      <section>
+        <h2>Clock</h2>
+        <div className="stack" role="radiogroup" aria-label="Clock">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!timed}
+            className={`btn tall ${timed ? '' : 'selected'}`}
+            onClick={() => setTimed(false)}
+          >
+            <span>Open game</span>
+            <span className="sub">Take as long as you like</span>
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={timed}
+            className={`btn tall ${timed ? 'selected' : ''}`}
+            onClick={() => setTimed(true)}
+          >
+            <span>Timed</span>
+            <span className="sub">15s to pick a piece, 15s to place it</span>
+          </button>
+        </div>
+        {timed && (
+          // Says what running out actually does, since a clock that plays for
+          // you is not what most people expect a clock to do.
+          <p className="note">
+            Run out of time and the app picks for you — a legal move, but not a good one.
+          </p>
+        )}
+      </section>
+
+      <button type="button" className="btn primary tall" onClick={() => onStart(color, timed)}>
         <span>Start game</span>
       </button>
     </div>

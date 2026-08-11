@@ -20,6 +20,8 @@ export interface GameRecord {
   mode: GameMode
   /** The computers' setting in a solo game. */
   difficulty: Difficulty | null
+  /** Whether the human turns were on a clock. */
+  timed: boolean
   /** Your colour in a solo game; null when every seat was a person. */
   yourColor: Color | null
   /** Total pieces placed by everyone, as a rough measure of how long it ran. */
@@ -90,6 +92,7 @@ export function summarise(session: Session, finishedAt = new Date()): GameRecord
     finishedAt: finishedAt.toISOString(),
     mode: session.mode,
     difficulty: session.mode === 'solo' ? (computer?.difficulty ?? null) : null,
+    timed: session.timed,
     yourColor: session.mode === 'solo' ? yourColor : null,
     movesPlayed: session.state.placedPieces.length,
     players: session.state.players.map((player) => {

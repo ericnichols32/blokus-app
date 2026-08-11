@@ -29,6 +29,12 @@ export interface Session {
   id: string
   mode: GameMode
   seats: Record<Color, Seat>
+  /**
+   * Whether every human turn is on a clock. Fixed at kick-off rather than read
+   * from settings, so a game already under way can't have a timer appear
+   * halfway through it.
+   */
+  timed: boolean
   state: GameState
 }
 
@@ -38,18 +44,18 @@ export interface Session {
  */
 const STORAGE_KEY = 'blokus:session:v2'
 
-export function createSolo(playerColor: Color, difficulty: Difficulty): Session {
+export function createSolo(playerColor: Color, difficulty: Difficulty, timed = false): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) {
     seats[color] = color === playerColor ? { kind: 'human' } : { kind: 'computer', difficulty }
   }
-  return { id: newGameId(), mode: 'solo', seats, state: createGame(COLORS) }
+  return { id: newGameId(), mode: 'solo', seats, timed, state: createGame(COLORS) }
 }
 
 export function createPassAndPlay(): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) seats[color] = { kind: 'human' }
-  return { id: newGameId(), mode: 'pass-and-play', seats, state: createGame(COLORS) }
+  return { id: newGameId(), mode: 'pass-and-play', seats, timed: false, state: createGame(COLORS) }
 }
 
 export function loadSession(): Session | null {
@@ -69,9 +75,10 @@ export function loadSession(): Session | null {
       state.players.length > 0
 
     if (!looksValid) return null
-    // Games saved before ids existed get one now, rather than throwing away a
-    // game in progress just to change the storage format.
-    return parsed.id ? parsed : { ...parsed, id: newGameId() }
+    // Games saved before ids or the clock existed are filled in rather than
+    // thrown away, since a game in progress is worth more than a tidy format.
+    // A save from before timed mode was untimed by definition.
+    return { ...parsed, id: parsed.id || newGameId(), timed: parsed.timed === true }
   } catch {
     return null
   }

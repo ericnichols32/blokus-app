@@ -9,6 +9,7 @@ import {
   applyMove,
   checkPlacement,
   chooseMove,
+  chooseTimeoutMove,
   finalizeScores,
   getOrientationCells,
 } from '../game'
@@ -17,6 +18,8 @@ import { rotateCells } from '../game'
 import { rotationFacing, screenToBoard } from '../boardView'
 import type { Session } from '../session'
 import type { Settings } from '../settings'
+import { phaseFor, remaining, secondsLeft, startTurn, switchPhase } from '../turnClock'
+import type { ClockState } from '../turnClock'
 import './GameScreen.css'
 
 function clamp(n: number, min: number, max: number) {
@@ -62,6 +65,17 @@ function grabCell(cells: readonly Cell[]): Cell {
 /** Long enough to read as deliberation rather than a glitch. */
 const COMPUTER_THINKING_MS = 550
 
+/**
+ * How often the countdown re-reads the wall clock. Fast enough that the number
+ * changes on time and expiry fires promptly, slow enough not to re-render the
+ * board four times a second.
+ *
+ * Everything is derived from timestamps rather than counted down tick by tick,
+ * so a backgrounded tab — where browsers throttle timers to about once a second
+ * — comes back with the correct time elapsed instead of a clock that paused.
+ */
+const TICK_MS = 200
+
 interface GameScreenProps {
   session: Session
   settings: Settings
@@ -83,6 +97,10 @@ export function GameScreen({
   const [flipped, setFlipped] = useState(false)
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
+  const [clock, setClock] = useState<ClockState | null>(null)
+  // Bumped by the ticker purely to re-read the wall clock; the countdown is
+  // derived, so nothing but the displayed number depends on this.
+  const [, tick] = useState(0)
   const boardRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -193,6 +211,104 @@ export function GameScreen({
       !currentPlayer.hasPlayedFirstMove,
     )
   }, [clampedAnchor, selectedPieceId, gameState.board, currentPlayer, previewCells])
+
+  /** The clock only runs on a person's turn, in a game that asked for one. */
+  const clockRunning = session.timed && !isComputerTurn && !gameState.gameOver
+  const phase = phaseFor(selectedPieceId)
+
+  /**
+   * What happens when a budget runs out.
+   *
+   * Selecting: a piece is chosen for you, and the placement clock then gives
+   * you the full fifteen seconds to put it down — you lost the choice, not the
+   * turn.
+   *
+   * Placing: if the piece is already sitting somewhere legal, that is where it
+   * goes. You did the work and only missed the confirming tap, and moving it
+   * somewhere worse at that point would be the app taking a game off you rather
+   * than keeping it moving. Otherwise a legal spot is picked, mediocre by
+   * construction.
+   */
+  const expire = useCallback(() => {
+    const opponents = gameState.players
+      .filter((p) => p.color !== currentPlayer.color)
+      .map((p) => p.color)
+
+    if (phaseFor(selectedPieceId) === 'select') {
+      const move = chooseTimeoutMove(gameState.board, currentPlayer, opponents)
+      if (!move) return
+      setRotationSteps(0)
+      setFlipped(false)
+      setAnchor(null)
+      setSelectedPieceId(move.pieceId)
+      return
+    }
+
+    if (selectedPieceId && clampedAnchor && previewCheck?.valid) {
+      onStateChange(applyMove(gameState, { pieceId: selectedPieceId, cells: previewCells }))
+      clearSelection()
+      return
+    }
+
+    const move = chooseTimeoutMove(
+      gameState.board,
+      currentPlayer,
+      opponents,
+      selectedPieceId ?? undefined,
+    )
+    if (!move) return
+    onStateChange(applyMove(gameState, move))
+    clearSelection()
+  }, [
+    gameState,
+    currentPlayer,
+    selectedPieceId,
+    clampedAnchor,
+    previewCheck,
+    previewCells,
+    onStateChange,
+    clearSelection,
+  ])
+
+  // A fresh pair of budgets each time the turn reaches a person. Keyed on the
+  // move count rather than on whose turn it is, because once everyone else has
+  // passed out the turn can come back round to the same player — and a clock
+  // that only reset when the colour changed would then never reset at all.
+  useEffect(() => {
+    setClock(clockRunning ? startTurn(Date.now()) : null)
+  }, [clockRunning, gameState.placedPieces.length])
+
+  // Picking a piece up stops the selection clock and starts the placement one;
+  // putting it back does the reverse. Neither is refilled — see turnClock.ts.
+  useEffect(() => {
+    setClock((current) => (current ? switchPhase(current, phase, Date.now()) : current))
+  }, [phase])
+
+  /**
+   * The ticker reaches `expire` through a ref rather than through its own
+   * dependencies, and this is load-bearing rather than tidiness.
+   *
+   * `expire` is rebuilt whenever the preview moves, which during a drag is
+   * every pointer event. Depending on it directly would tear down and restart
+   * the interval dozens of times a second, so the 200ms would never elapse and
+   * a player who simply kept dragging would run past the deadline untouched —
+   * the one way to hold a turn open that the clock is meant to prevent.
+   */
+  const expireRef = useRef(expire)
+  useEffect(() => {
+    expireRef.current = expire
+  }, [expire])
+
+  useEffect(() => {
+    if (!clock) return
+
+    const id = setInterval(() => {
+      if (remaining(clock, Date.now()) <= 0) expireRef.current()
+      else tick((n) => n + 1)
+    }, TICK_MS)
+
+    return () => clearInterval(id)
+  }, [clock])
 
   function selectPiece(id: PieceId) {
     if (isComputerTurn) return
@@ -323,6 +439,15 @@ export function GameScreen({
   const canInteract = !isComputerTurn
   const canPlace = hasSelection && !!clampedAnchor && !!previewCheck?.valid && canInteract
 
+  const countdown = clock ? secondsLeft(clock, Date.now()) : null
+  /**
+   * Cancel goes away once the selection clock is spent, which is the case after
+   * a piece has been chosen for you. Without this it would look like an escape
+   * and behave like a loop: dropping back into a selection phase with no time
+   * left simply re-picks the same piece, since the choice is deterministic.
+   */
+  const selectionSpent = clock !== null && clock.phase === 'place' && clock.selectLeft <= 0
+
   return (
     <div
       className="screen game"
@@ -339,6 +464,23 @@ export function GameScreen({
           {COLOR_LABEL[currentPlayer.color]}
           {isComputerTurn ? ' is thinking…' : "'s turn"}
         </span>
+
+        {countdown !== null && (
+          <span
+            className={`clock ${countdown <= 5 ? 'urgent' : ''}`}
+            // Announced politely and only as it gets tight — a countdown read
+            // out every second would talk over everything else.
+            aria-live={countdown <= 5 ? 'polite' : 'off'}
+          >
+            {/* Read off the clock rather than off the selection, so the word and
+                the number always describe the same budget. They disagree for a
+                frame otherwise: the move lands, the selection clears, and the
+                label flips to "Pick" while the number is still the spent
+                placement clock — which renders as a flash of "Pick 0". */}
+            <span className="clock-what">{clock?.phase === 'select' ? 'Pick' : 'Place'}</span>
+            <span className="clock-secs">{countdown}</span>
+          </span>
+        )}
       </header>
 
       {settings.showLiveScores && <ScoreStrip session={session} />}
@@ -393,7 +535,7 @@ export function GameScreen({
         <button
           type="button"
           className="btn"
-          disabled={!hasSelection || !canInteract}
+          disabled={!hasSelection || !canInteract || selectionSpent}
           onClick={clearSelection}
         >
           Cancel

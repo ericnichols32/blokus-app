@@ -233,6 +233,54 @@ export function chooseMove(
   return acceptable[Math.floor(random() * acceptable.length)].move
 }
 
+/**
+ * The move played on your behalf when a timed turn runs out.
+ *
+ * Deliberately mediocre, and deliberately not random. Every legal move is
+ * ranked on the middling evaluation, and the one in the middle is taken: that
+ * way running out of time reliably costs you something, without ever handing
+ * you a better move than you would have found — which a random pick would do
+ * often enough to make the clock worth ignoring. It also avoids the opposite
+ * failure, where a random pick dumps your single square on move three and the
+ * timer reads as a punishment rather than a nudge.
+ *
+ * `pieceId` restricts the choice to one piece, for the case where the clock ran
+ * out with a piece already in hand — you chose it, so you keep it. A piece with
+ * nowhere legal to go falls back to the unrestricted choice, since placing
+ * *something* is the whole point.
+ *
+ * Returns null only when the player has no legal move at all, which the engine
+ * should already have passed them for.
+ */
+export function chooseTimeoutMove(
+  board: Board,
+  player: PlayerState,
+  opponents: Color[],
+  pieceId?: PieceId,
+): Move | null {
+  const scored = scoreMoves(board, player, opponents, TIMEOUT_DIFFICULTY)
+  if (scored.length === 0) return null
+
+  const forPiece = pieceId ? scored.filter((c) => c.move.pieceId === pieceId) : []
+  const candidates = forPiece.length > 0 ? forPiece : scored
+
+  // Ascending, so the midpoint is the median. Ties are broken by piece id to
+  // keep the result stable: the same position must not produce a different
+  // move on a re-render, or the countdown would be choosing continuously.
+  const ranked = [...candidates].sort(
+    (a, b) => a.score - b.score || a.move.pieceId.localeCompare(b.move.pieceId),
+  )
+  return ranked[Math.floor((ranked.length - 1) / 2)].move
+}
+
+/**
+ * The evaluation the timeout move is ranked on. Middling on purpose: taking the
+ * median of `hard`'s ranking would still be a considered move, because hard
+ * scores position heavily, and taking the median of `easy`'s would be close to
+ * arbitrary since easy only counts squares.
+ */
+const TIMEOUT_DIFFICULTY: Difficulty = 'medium'
+
 /** Guards against a bad move reaching applyMove, which throws. */
 export function isMoveLegal(board: Board, player: PlayerState, move: Move): boolean {
   if (!player.remainingPieceIds.includes(move.pieceId)) return false
