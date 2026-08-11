@@ -40,7 +40,7 @@ The full intent, so it isn't only in someone's head:
 | Settings screen | Done — live scores, difficulty |
 | Live scores during play | Done — off by default |
 | Recording finished games | Done — banked for stats |
-| Accounts and usernames | Done — needs a Firebase project to leave the device |
+| Accounts and usernames | Done — live on Firebase |
 | Timed mode | Not started |
 | Online play against friends | Not started |
 | Stats screen | Not started |
@@ -275,9 +275,16 @@ you are looking for rather than by the path.
    gh secret set VITE_FIREBASE_APP_ID
    ```
 
-8. **Authentication → Settings → Authorized domains**, add
-   `ericnichols32.github.io`. Skip this and sign-in works locally but is refused
-   on the live site, which is a confusing one to chase down later.
+8. Optional, and only worth doing as insurance: **Authentication → Settings →
+   Authorized domains**, add `ericnichols32.github.io`.
+
+   This list gates OAuth redirect flows — Google sign-in, email links — none of
+   which this app uses. Anonymous sign-in ignores it entirely; it is a plain
+   call to the Identity Toolkit endpoint with the web API key, and it succeeds
+   from any origin, or from none at all. The entry costs nothing and would be
+   needed the day a real sign-in method is added, but nothing here depends on
+   it, and an earlier version of these instructions was wrong to say sign-in
+   would fail without it.
 
 Those four values are not secrets. A Firebase web config ships inside the
 JavaScript bundle wherever you keep it, and Google documents it as public —
