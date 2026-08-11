@@ -23,7 +23,7 @@ export interface OnlineGame {
   createdAt: string
   /** Touched on every move, so the games list can sort by what moved last. */
   updatedAt: string
-  seats: Record<Color, OnlineSeat>
+  seats: Record<Color, Seat>
   /**
    * The color that opens, drawn when the game is made.
    *
@@ -46,17 +46,6 @@ export interface OnlineGame {
    * finished games from live ones without replaying every one of them.
    */
   finished: boolean
-}
-
-/**
- * One color's seat. A human seat carries who owns it; the same player may own
- * two colors, which is how a two-player game uses the whole board.
- */
-export interface OnlineSeat extends Seat {
-  /** Absent on a computer seat. */
-  playerId?: string
-  /** Kept alongside the id so the board can name people without a second lookup. */
-  username?: string
 }
 
 /** How the colors nobody claimed are dealt with. */
@@ -94,7 +83,7 @@ export function assignSeats(
   participants: Participant[],
   fill: SeatFill,
   strength: Strength = STRONGEST,
-): Record<Color, OnlineSeat> {
+): Record<Color, Seat> {
   if (participants.length < 2) {
     throw new SeatingError('An online game needs at least two people.')
   }
@@ -105,7 +94,7 @@ export function assignSeats(
     throw new SeatingError('Two colors each only works with exactly two players.')
   }
 
-  const seats = {} as Record<Color, OnlineSeat>
+  const seats = {} as Record<Color, Seat>
 
   if (fill === 'double') {
     DOUBLE_PAIRS.forEach((pair, i) => {

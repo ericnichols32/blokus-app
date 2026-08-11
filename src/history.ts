@@ -89,16 +89,20 @@ export function summarise(session: Session, finishedAt = new Date()): GameRecord
     (a, b) => scores[b.color].score - scores[a.color].score,
   )
 
-  const yourColor = COLORS.find((c) => session.seats[c]?.kind === 'human') ?? null
+  // youAre when the session knows it, which online games always do. Falling back
+  // to the first human seat keeps solo games — and every game already recorded —
+  // reading the same as before.
+  const yourColor =
+    session.youAre ?? COLORS.find((c) => session.seats[c]?.kind === 'human') ?? null
   const computer = COLORS.map((c) => session.seats[c]).find((s) => s?.kind === 'computer')
 
   return {
     id: session.id,
     finishedAt: finishedAt.toISOString(),
     mode: session.mode,
-    strength: session.mode === 'solo' ? (computer?.strength ?? null) : null,
+    strength: computer?.strength ?? null,
     timed: session.timed,
-    yourColor: session.mode === 'solo' ? yourColor : null,
+    yourColor,
     movesPlayed: session.state.placedPieces.length,
     players: session.state.players.map((player) => {
       const result = scores[player.color]

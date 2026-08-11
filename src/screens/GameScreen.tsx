@@ -78,12 +78,33 @@ const COMPUTER_THINKING_MS = 550
  */
 const TICK_MS = 200
 
+/**
+ * What an online game needs from the board that a solo game doesn't.
+ *
+ * Present only for an online game, and its presence is what switches the board
+ * out of playing-locally mode: a move is handed to `submit` instead of being
+ * applied here, and the computers are left alone because whoever's write lands
+ * plays them (see online.ts — nothing on a server can).
+ */
+export interface OnlineControls {
+  /** Whether the color on turn is one of yours. */
+  yourTurn: boolean
+  /** A line for the header: whose move this is. */
+  status: string
+  /** A turn is in flight. The board locks so it can't be played twice. */
+  busy: boolean
+  /** Why the last attempt failed, if it did. */
+  error: string | null
+  submit: (move: { pieceId: PieceId; cells: Point[] }) => void
+}
+
 interface GameScreenProps {
   session: Session
   settings: Settings
   onStateChange: (state: GameState) => void
   onExit: () => void
   onPlayAgain: () => void
+  online?: OnlineControls
 }
 
 export function GameScreen({
@@ -92,6 +113,7 @@ export function GameScreen({
   onStateChange,
   onExit,
   onPlayAgain,
+  online,
 }: GameScreenProps) {
   const gameState = session.state
   const [selectedPieceId, setSelectedPieceId] = useState<PieceId | null>(null)
@@ -116,7 +138,13 @@ export function GameScreen({
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const currentSeat = session.seats[currentPlayer.color]
-  const isComputerTurn = currentSeat.kind === 'computer' && !gameState.gameOver
+  /*
+   * Online, the computers are never played here. They are played by whichever
+   * device writes the turn before theirs, in the same write — so a board that
+   * also played them locally would race that write and try to play the same
+   * seat twice from two places.
+   */
+  const isComputerTurn = !online && currentSeat.kind === 'computer' && !gameState.gameOver
 
   /**
    * The angle the board sits at: your own corner nearest you, so the shape in
@@ -125,11 +153,13 @@ export function GameScreen({
    * where the phone changed hands mid-game.
    */
   const seatRotation = useMemo(() => {
-    const yours = (Object.keys(session.seats) as Color[]).find(
-      (c) => session.seats[c].kind === 'human',
-    )
+    // youAre, not "the first human seat": online, three of the human seats are
+    // other people, and facing one of theirs would put your corner anywhere.
+    const yours =
+      session.youAre ??
+      (Object.keys(session.seats) as Color[]).find((c) => session.seats[c].kind === 'human')
     return rotationFacing(yours ?? currentPlayer.color)
-  }, [session.seats, currentPlayer.color])
+  }, [session.youAre, session.seats, currentPlayer.color])
 
   /**
    * Quarter-turns the player has added by hand, on top of their seat's angle.
@@ -221,7 +251,9 @@ export function GameScreen({
   }, [clampedAnchor, selectedPieceId, gameState.board, currentPlayer, previewCells])
 
   /** The clock only runs on a person's turn, in a game that asked for one. */
-  const clockRunning = session.timed && !isComputerTurn && !gameState.gameOver
+  // Never online: a fifteen-second budget means nothing in a game whose next
+  // turn might be tomorrow morning.
+  const clockRunning = session.timed && !online && !isComputerTurn && !gameState.gameOver
   const phase = phaseFor(selectedPieceId)
 
   /**
@@ -399,6 +431,16 @@ export function GameScreen({
 
   function confirmPlacement() {
     if (!selectedPieceId || !clampedAnchor || !previewCheck?.valid) return
+
+    // Online the move is written to the store and the board comes back from it,
+    // so nothing is applied locally — a local board that ran ahead of the store
+    // would show a move that might still be refused.
+    if (online) {
+      online.submit({ pieceId: selectedPieceId, cells: previewCells })
+      clearSelection()
+      return
+    }
+
     onStateChange(applyMove(gameState, { pieceId: selectedPieceId, cells: previewCells }))
     clearSelection()
   }
@@ -422,7 +464,13 @@ export function GameScreen({
                 <span className="rank">#{rank}</span>
                 <span className="dot" style={{ background: COLOR_HEX[color] }} />
                 <span className="who">
-                  {COLOR_LABEL[color]}
+                  {seat.kind === 'computer'
+                    ? 'Computer'
+                    : online
+                      ? color === session.youAre
+                        ? 'You'
+                        : `@${seat.username ?? 'player'}`
+                      : COLOR_LABEL[color]}
                   {seat.kind === 'computer' && <span className="tag">CPU</span>}
                 </span>
                 <span className="score">{scores[color].score}</span>
@@ -432,11 +480,13 @@ export function GameScreen({
           })}
         </ul>
         <div className="stack">
-          <button type="button" className="btn primary" onClick={onPlayAgain}>
-            Play again
-          </button>
-          <button type="button" className="btn" onClick={onExit}>
-            Back to menu
+          {!online && (
+            <button type="button" className="btn primary" onClick={onPlayAgain}>
+              Play again
+            </button>
+          )}
+          <button type="button" className={online ? 'btn primary' : 'btn'} onClick={onExit}>
+            {online ? 'Back to your games' : 'Back to menu'}
           </button>
         </div>
       </div>
@@ -444,7 +494,9 @@ export function GameScreen({
   }
 
   const hasSelection = selectedPieceId !== null
-  const canInteract = !isComputerTurn
+  // Online you can look at any board but only play your own turn, and only one
+  // move at a time — `busy` covers the gap while a turn is being written.
+  const canInteract = !isComputerTurn && (!online || (online.yourTurn && !online.busy))
   const canPlace = hasSelection && !!clampedAnchor && !!previewCheck?.valid && canInteract
 
   const countdown = clock ? secondsLeft(clock, Date.now()) : null
@@ -468,9 +520,18 @@ export function GameScreen({
           ‹
         </button>
         <span className="dot" style={{ background: COLOR_HEX[currentPlayer.color] }} />
+        {/* Online, a color name doesn't say whose move it is — there are three
+            other people, and which color each holds is not what you remember
+            about them. So the status names the person instead. */}
         <span className="turn-label">
-          {COLOR_LABEL[currentPlayer.color]}
-          {isComputerTurn ? ' is thinking…' : "'s turn"}
+          {online ? (
+            online.status
+          ) : (
+            <>
+              {COLOR_LABEL[currentPlayer.color]}
+              {isComputerTurn ? ' is thinking…' : "'s turn"}
+            </>
+          )}
         </span>
 
         {countdown !== null && (
@@ -503,6 +564,12 @@ export function GameScreen({
           ⟳
         </button>
       </header>
+
+      {online?.error && (
+        <p className="turn-error" role="alert">
+          {online.error}
+        </p>
+      )}
 
       {settings.showLiveScores && <ScoreStrip session={session} />}
 

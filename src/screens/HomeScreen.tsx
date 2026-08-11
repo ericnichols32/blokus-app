@@ -11,6 +11,7 @@ interface HomeScreenProps {
   gamesRecorded: number
   onResume: () => void
   onPlaySolo: () => void
+  onPlayOnline: () => void
   onStats: () => void
   onSettings: () => void
   onAccount: () => void
@@ -22,6 +23,7 @@ export function HomeScreen({
   gamesRecorded,
   onResume,
   onPlaySolo,
+  onPlayOnline,
   onStats,
   onSettings,
   onAccount,
@@ -72,9 +74,9 @@ export function HomeScreen({
           <span className="sub">You against three opponents</span>
         </button>
 
-        <button type="button" className="btn tall" disabled>
+        <button type="button" className="btn tall" onClick={onPlayOnline}>
           <span>Play a friend online</span>
-          <span className="sub">Not built yet</span>
+          <span className="sub">Take turns over days</span>
         </button>
 
         {/* Left enabled with nothing recorded: the screen itself explains what

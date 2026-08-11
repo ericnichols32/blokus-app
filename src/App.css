@@ -91,6 +91,10 @@
   gap: 3px;
   padding: 14px 16px;
   font-size: 16px;
+  /* Overrides .btn's centring. The flex alignment above only places the spans;
+     a sub long enough to wrap would still centre its own lines, which reads as
+     ragged next to a left-aligned title. */
+  text-align: left;
 }
 
 .btn.tall .sub {

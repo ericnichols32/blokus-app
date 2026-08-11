@@ -20,20 +20,37 @@ export interface Seat {
   kind: SeatKind
   /** Only meaningful for computer seats. */
   strength?: Strength
+  /**
+   * Who holds this seat, in an online game. Absent on a computer seat, and on
+   * every seat of a solo game — there is only one person there and `youAre`
+   * already says which seat is theirs.
+   *
+   * Two colors carrying the same `playerId` is how one person plays two of them.
+   */
+  playerId?: string
+  /**
+   * Kept beside the id so a board can name people without a second lookup, and
+   * so a finished game still says who played it if the account is later renamed.
+   */
+  username?: string
 }
 
-/**
- * Only one mode now that pass-and-play is gone. Kept as a named type because
- * online play adds to it, and because saved games and recorded games both carry
- * the value.
- */
-export type GameMode = 'solo'
+export type GameMode = 'solo' | 'online'
 
 export interface Session {
   /** Identifies this game, so a finished one is only recorded to history once. */
   id: string
   mode: GameMode
   seats: Record<Color, Seat>
+  /**
+   * The seat belonging to whoever is holding this device.
+   *
+   * Only the seats can say this, and only in a solo game: there, the one human
+   * seat is you. Online, every seat may be human and three of them are other
+   * people, so "the first human seat" is a guess that is usually wrong — which
+   * would face the board at somebody else and file the game under their result.
+   */
+  youAre?: Color
   /**
    * Whether every human turn is on a clock. Fixed at kick-off rather than read
    * from settings, so a game already under way can't have a timer appear
@@ -59,7 +76,14 @@ export function createSolo(
   for (const color of COLORS) {
     seats[color] = color === playerColor ? { kind: 'human' } : { kind: 'computer', strength }
   }
-  return { id: newGameId(), mode: 'solo', seats, timed, state: createGame(COLORS, firstColor) }
+  return {
+    id: newGameId(),
+    mode: 'solo',
+    seats,
+    youAre: playerColor,
+    timed,
+    state: createGame(COLORS, firstColor),
+  }
 }
 
 /** Draws the colour that opens. Every seat has the same chance, including yours. */
@@ -139,5 +163,6 @@ export function isResumable(session: Session): boolean {
 
 export function describeSession(session: Session): string {
   const placed = session.state.placedPieces.length
-  return `Solo game · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
+  const label = session.mode === 'online' ? 'Online game' : 'Solo game'
+  return `${label} · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
 }

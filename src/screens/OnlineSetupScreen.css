@@ -1,0 +1,61 @@
+.online-setup .note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.online-setup .note.error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #7f1d1d;
+  background: #2a1215;
+  color: #fecaca;
+}
+
+/* The @ sits inside the field's border, so the pair reads as one control. */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+}
+
+.name-row .at {
+  color: #64748b;
+  font-size: 16px;
+}
+
+.name-row input {
+  flex: 1;
+  min-width: 0;
+  /* 16px keeps iOS from zooming the page when the field takes focus. */
+  font-size: 16px;
+  min-height: 46px;
+  border: none;
+  background: none;
+  color: #f8fafc;
+  font-family: inherit;
+}
+
+.name-row input:focus {
+  outline: none;
+}
+
+.name-row:focus-within {
+  border-color: #3b82f6;
+}
+
+.color-preview {
+  display: flex;
+  gap: 8px;
+}
+
+.color-preview span {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}

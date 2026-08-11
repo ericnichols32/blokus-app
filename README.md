@@ -44,7 +44,7 @@ The full intent, so it isn't only in someone's head:
 | Accounts and usernames | Done — live on Firebase |
 | Timed mode | Done — solo games, two clocks a turn, length configurable |
 | Stats screen | Done — solo games only; per-friend records need online play |
-| Online play against friends | Not started |
+| Online play against friends | Done — one, two or three friends, async |
 
 ## Rules as implemented
 
@@ -80,6 +80,8 @@ src/
   components/    Board, piece tray, piece icon, score strip
   session.ts     What a game is and how it is saved
   settings.ts    Preferences that outlive a game
+  online.ts      Games against friends: seating, turns, and the move list
+  onlineActions.ts  What the screens do with one — invites, turns, errors
   history.ts     Finished games, summarised as they end
   stats.ts       Turns those summaries into the figures on the stats screen
   account.ts     Who you are on this device, and the username rules
@@ -91,6 +93,38 @@ src/
 
 The engine is deliberately free of React so it can be tested directly and later
 reused by a server.
+
+### Playing friends online
+
+Games are async: take your turn whenever, and your friends see it next time they
+look. There is no server — a game is one document in Firestore that everybody in
+it can read and write.
+
+**The move list is the game.** `replayMoves` rebuilds an exact state from an
+ordered list of moves, so a game stores only its moves and appending one is the
+only write there is. Two devices cannot disagree about what happened, and the
+board is recomputed on open rather than trusted from anyone's screen.
+
+**All four colors are always seated**, whoever is playing. Two people can take
+two colors each — blue and red against yellow and green, opposite corners so
+neither gets a connected quarter to grow from — or the computer takes the spare
+seats. Three people can only be filled by the computer; two colors each would
+need six.
+
+Two things that would otherwise strand a game:
+
+- **The opening color is drawn and stored.** Seats go out in board order, so
+  without a draw whoever made the game would open every time. An empty move list
+  has nothing for `replayMoves` to infer the opener from, hence storing it.
+- **Whoever moves also plays the computers behind them**, in the same write.
+  Nothing runs on a server, so a computer seat has nobody to move it: the turn
+  would reach one and stop dead, with no human able to unstick it. A game whose
+  draw opens on a computer gets that move at creation for the same reason.
+
+Turns are written in a transaction that refuses the write if the game moved on,
+so two friends playing at once cannot erase each other. The rules file cannot
+enforce turn order or legality — sign-in is anonymous and an account is a typed
+username, so nothing ties a caller to a player. That is enforced on the device.
 
 ### How the stats are worked out
 
