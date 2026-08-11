@@ -227,16 +227,23 @@ re-asserting on every load would be a tug of war neither side could see.
 ### Setting up the Firebase project
 
 Until this is done the app still works — it just keeps usernames on the device,
-shares nothing, and says so on the sign-in screen. Roughly five minutes:
+shares nothing, and says so on the sign-in screen. Roughly five minutes.
+
+The console reorganises its sidebar every so often, so the names below may not
+match what you see. As of August 2026 the sidebar groups things under **Product
+categories**; older guides (and older versions of this list) put both Firestore
+and Authentication under a **Build** section that no longer exists. Go by what
+you are looking for rather than by the path.
 
 1. At [console.firebase.google.com](https://console.firebase.google.com), create
    a project. Turn Google Analytics **off**; nothing here uses it. The free
    (Spark) plan is enough, and no card is needed.
-2. **Build → Firestore Database → Create database.** Pick a region near you and
-   start in **production mode** — the rules get replaced in step 4 anyway, and
-   test mode expires after 30 days and would break accounts without warning.
-3. **Build → Authentication → Get started → Anonymous → Enable.** This does not
-   identify anyone; it exists so the rules can require a caller that came
+2. **Databases & Storage → Firestore Database → Create database.** Pick a region
+   near you and start in **production mode** — the rules get replaced in step 4
+   anyway, and test mode expires after 30 days, which would break accounts with
+   no warning.
+3. **Security → Authentication → Get started → Anonymous → Enable.** This does
+   not identify anyone; it exists so the rules can require a caller that came
    through the app. See the comment at the top of `firestore.rules`.
 4. **Firestore Database → Rules**, paste in the contents of `firestore.rules`
    from this repo, and publish.
@@ -253,7 +260,8 @@ shares nothing, and says so on the sign-in screen. Roughly five minutes:
    ```
 
 8. **Authentication → Settings → Authorized domains**, add
-   `ericnichols32.github.io`, or sign-in will be refused on the live site.
+   `ericnichols32.github.io`. Skip this and sign-in works locally but is refused
+   on the live site, which is a confusing one to chase down later.
 
 Those four values are not secrets. A Firebase web config ships inside the
 JavaScript bundle wherever you keep it, and Google documents it as public —
