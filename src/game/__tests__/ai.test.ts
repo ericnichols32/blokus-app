@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { chooseMove, chooseTimeoutMove, isMoveLegal, pieceSize } from '../ai'
-import type { Difficulty } from '../ai'
+import {
+  chooseMove,
+  chooseTimeoutMove,
+  DIFFICULTY_STRENGTH as S,
+  isMoveLegal,
+  pieceSize,
+  readStrength,
+  strengthLabel,
+} from '../ai'
+import type { Strength } from '../ai'
 import { applyMove, createGame, finalizeScores } from '../engine'
 import type { GameState } from '../engine'
 import { COLORS } from '../types'
@@ -23,7 +31,7 @@ function seededRandom(seed: number) {
 }
 
 /** Plays a whole game with every seat driven by the AI. */
-function playGame(difficulties: Record<Color, Difficulty>, seed: number) {
+function playGame(difficulties: Record<Color, Strength>, seed: number) {
   const random = seededRandom(seed)
   let state: GameState = createGame(COLORS)
   let turns = 0
@@ -45,13 +53,13 @@ function playGame(difficulties: Record<Color, Difficulty>, seed: number) {
   return { state, turns }
 }
 
-const allSame = (d: Difficulty): Record<Color, Difficulty> => ({
+const allSame = (d: Strength): Record<Color, Strength> => ({
   blue: d, yellow: d, red: d, green: d,
 })
 
 describe('chooseMove', () => {
   it('plays legal moves through to a finished game', () => {
-    const { state, turns } = playGame(allSame('medium'), 7)
+    const { state, turns } = playGame(allSame(S.medium), 7)
     expect(state.gameOver).toBe(true)
     expect(turns).toBeGreaterThan(40)
     expect(state.placedPieces.length).toBe(turns)
@@ -60,12 +68,12 @@ describe('chooseMove', () => {
   it('returns null when the player has nothing left to play', () => {
     const state = createGame(COLORS)
     const stuck = { ...state.players[0], remainingPieceIds: [] }
-    expect(chooseMove(state.board, stuck, ['yellow'], 'hard')).toBeNull()
+    expect(chooseMove(state.board, stuck, ['yellow'], S.hard)).toBeNull()
   })
 
   it('opens on the start corner with a large piece', () => {
     const state = createGame(COLORS)
-    const move = chooseMove(state.board, state.players[0], ['yellow', 'red', 'green'], 'hard')
+    const move = chooseMove(state.board, state.players[0], ['yellow', 'red', 'green'], S.hard)
     expect(move).not.toBeNull()
     expect(move!.cells.some(([c, r]) => c === 0 && r === 0)).toBe(true)
     // A strong opening spends a pentomino, not the single square.
@@ -81,14 +89,14 @@ describe('chooseMove', () => {
 
     const hardPicks = new Set(
       [1, 2, 3, 4, 5].map((seed) =>
-        JSON.stringify(chooseMove(state.board, player, opponents, 'hard', seededRandom(seed))),
+        JSON.stringify(chooseMove(state.board, player, opponents, S.hard, seededRandom(seed))),
       ),
     )
     expect(hardPicks.size).toBeGreaterThan(1)
 
     const easyPicks = new Set(
       [1, 2, 3, 4, 5].map((seed) =>
-        JSON.stringify(chooseMove(state.board, player, opponents, 'easy', seededRandom(seed))),
+        JSON.stringify(chooseMove(state.board, player, opponents, S.easy, seededRandom(seed))),
       ),
     )
     expect(easyPicks.size).toBeGreaterThan(1)
@@ -109,30 +117,95 @@ describe('chooseMove', () => {
     for (let round = 0; round < rounds; round++) {
       // Alternate which diagonal plays hard, so neither the turn order nor the
       // per-colour styles decide the result.
-      const difficulties: Record<Color, Difficulty> =
+      const difficulties: Record<Color, Strength> =
         round % 2 === 0
-          ? { blue: 'hard', yellow: 'easy', red: 'hard', green: 'easy' }
-          : { blue: 'easy', yellow: 'hard', red: 'easy', green: 'hard' }
+          ? { blue: S.hard, yellow: S.easy, red: S.hard, green: S.easy }
+          : { blue: S.easy, yellow: S.hard, red: S.easy, green: S.hard }
 
       const { state } = playGame(difficulties, (round + 1) * 97)
       const scores = finalizeScores(state)
-      const best = (level: Difficulty) =>
+      const best = (level: Strength) =>
         Math.max(...COLORS.filter((c) => difficulties[c] === level).map((c) => scores[c].score))
 
-      margin += best('hard') - best('easy')
+      margin += best(S.hard) - best(S.easy)
     }
 
     expect(margin / rounds).toBeGreaterThan(10)
   })
 
   it('leaves fewer squares unplayed on hard than on easy', () => {
-    const hard = finalizeScores(playGame(allSame('hard'), 31).state)
-    const easy = finalizeScores(playGame(allSame('easy'), 31).state)
+    const hard = finalizeScores(playGame(allSame(S.hard), 31).state)
+    const easy = finalizeScores(playGame(allSame(S.easy), 31).state)
 
     const avg = (s: ReturnType<typeof finalizeScores>) =>
       COLORS.reduce((sum, c) => sum + s[c].remainingSquares, 0) / COLORS.length
 
     expect(avg(hard)).toBeLessThan(avg(easy))
+  })
+})
+
+describe('the strength scale', () => {
+  const opponents: Color[] = ['yellow', 'red', 'green']
+
+  it('puts the three measured levels at 0, a half and 1', () => {
+    expect(S.easy).toBe(0)
+    expect(S.medium).toBe(0.5)
+    expect(S.hard).toBe(1)
+  })
+
+  /*
+   * The weights are interpolated, and a non-finite strength would spread NaN
+   * through every move score — at which point no score compares greater than
+   * any other, nothing clears the acceptance threshold, and the search returns
+   * undefined for a player who demonstrably has moves. Cheap to guard, and the
+   * failure is a crash rather than a bad move.
+   */
+  it('still plays a legal move for a nonsense strength', () => {
+    const state = createGame(COLORS)
+    const nonsense = [NaN, Infinity, -Infinity, -1, 2, undefined as unknown as number]
+
+    for (const strength of nonsense) {
+      const move = chooseMove(state.board, state.players[0], opponents, strength)
+      expect(move, `strength ${strength}`).not.toBeNull()
+      expect(isMoveLegal(state.board, state.players[0], move!)).toBe(true)
+    }
+  })
+
+  it('plays between easy and hard at the middle of the slider', () => {
+    const avg = (s: ReturnType<typeof finalizeScores>) =>
+      COLORS.reduce((sum, c) => sum + s[c].remainingSquares, 0) / COLORS.length
+
+    const left = avg(finalizeScores(playGame(allSame(S.easy), 53).state))
+    const middle = avg(finalizeScores(playGame(allSame(0.5), 53).state))
+    const right = avg(finalizeScores(playGame(allSame(S.hard), 53).state))
+
+    // Fewer squares left over is stronger play, so the middle should sit between.
+    expect(middle).toBeLessThan(left)
+    expect(middle).toBeGreaterThanOrEqual(right)
+  })
+
+  it('reads a strength off a setting saved when it was a difficulty word', () => {
+    expect(readStrength('easy')).toBe(S.easy)
+    expect(readStrength('medium')).toBe(S.medium)
+    expect(readStrength('hard')).toBe(S.hard)
+  })
+
+  it('keeps a number it is given, clamped into range', () => {
+    expect(readStrength(0.35)).toBe(0.35)
+    expect(readStrength(-2)).toBe(0)
+    expect(readStrength(7)).toBe(1)
+  })
+
+  it('falls back for a value it cannot read at all', () => {
+    for (const junk of [null, undefined, '', 'impossible', NaN]) {
+      expect(readStrength(junk, 0.5), `${junk}`).toBe(0.5)
+    }
+  })
+
+  it('names the ends of the slider after the levels they are', () => {
+    expect(strengthLabel(S.hard)).toBe('Hardest')
+    expect(strengthLabel(S.medium)).toBe('Medium')
+    expect(strengthLabel(S.easy)).toBe('Easiest')
   })
 })
 
@@ -208,7 +281,7 @@ describe('chooseTimeoutMove', () => {
 
         const move = timedOut.includes(player.color)
           ? chooseTimeoutMove(state.board, player, others)
-          : chooseMove(state.board, player, others, 'hard', random)
+          : chooseMove(state.board, player, others, S.hard, random)
 
         expect(move).not.toBeNull()
         state = applyMove(state, move!)

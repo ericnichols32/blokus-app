@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyBoard, placeCells } from '../board'
 import { advanceTurn, applyMove, createGame, hasAnyLegalMove } from '../engine'
 import type { GameState, PlayerState } from '../engine'
-import { BOARD_SIZE } from '../types'
+import { BOARD_SIZE, COLORS } from '../types'
 
 describe('createGame', () => {
   it('gives every player all 21 pieces and starts with player 0', () => {
@@ -14,6 +14,28 @@ describe('createGame', () => {
     }
     expect(state.currentPlayerIndex).toBe(0)
     expect(state.gameOver).toBe(false)
+  })
+
+  it('can open on a colour other than the first', () => {
+    const state = createGame(COLORS, 'red')
+    expect(state.players[state.currentPlayerIndex].color).toBe('red')
+  })
+
+  it('keeps turn order clockwise from whoever opens', () => {
+    // Moving the starting point must not reorder the seats: after red comes
+    // green, then round to blue and yellow — the same rotation, entered later.
+    let state = createGame(COLORS, 'red')
+    const order: string[] = []
+    for (let i = 0; i < 4; i++) {
+      order.push(state.players[state.currentPlayerIndex].color)
+      state = { ...state, currentPlayerIndex: (state.currentPlayerIndex + 1) % 4 }
+    }
+    expect(order).toEqual(['red', 'green', 'blue', 'yellow'])
+  })
+
+  it('falls back to the first seat for a colour that is not playing', () => {
+    const state = createGame(['blue', 'yellow'], 'red')
+    expect(state.currentPlayerIndex).toBe(0)
   })
 })
 

@@ -16,6 +16,12 @@ describe('a fresh turn', () => {
     expect(remaining(clock, 1000)).toBe(SELECT_MS)
   })
 
+  it('takes a configured budget, and gives both phases the same one', () => {
+    const clock = startTurn(0, 40_000)
+    expect(remaining(clock, 0)).toBe(40_000)
+    expect(remaining(switchPhase(clock, 'place', 0), 0)).toBe(40_000)
+  })
+
   it('counts down in real time and stops at zero', () => {
     const clock = startTurn(0)
     expect(remaining(clock, 5_000)).toBe(SELECT_MS - 5_000)

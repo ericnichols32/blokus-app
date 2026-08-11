@@ -6,12 +6,65 @@ import { PIECE_BY_ID } from './pieces'
 import { BOARD_SIZE } from './types'
 import type { Color, PieceId, Point } from './types'
 
+/**
+ * How strong the computer plays, as a position on a continuous scale: 0 is the
+ * weakest setting and 1 the strongest. The three named levels below are still
+ * the only *measured* points on it; everything between them is interpolated.
+ */
+export type Strength = number
+
+export const WEAKEST: Strength = 0
+export const STRONGEST: Strength = 1
+
+/** Retained to read settings and saves written when the scale had three steps. */
 export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export const DIFFICULTY_LABEL: Record<Difficulty, string> = {
   easy: 'Easy',
   medium: 'Medium',
   hard: 'Hard',
+}
+
+/** Where each of the old three levels sits on the continuous scale. */
+export const DIFFICULTY_STRENGTH: Record<Difficulty, Strength> = {
+  easy: 0,
+  medium: 0.5,
+  hard: 1,
+}
+
+export function strengthFromDifficulty(difficulty: Difficulty): Strength {
+  return DIFFICULTY_STRENGTH[difficulty]
+}
+
+/**
+ * A strength out of whatever storage held, clamped into range. Accepts the
+ * `'easy' | 'medium' | 'hard'` written before the scale was continuous, so an
+ * existing setting or a game in progress keeps the level it was given rather
+ * than falling through to the default.
+ */
+export function readStrength(value: unknown, fallback: Strength = STRONGEST): Strength {
+  if (value === 'easy' || value === 'medium' || value === 'hard') {
+    return strengthFromDifficulty(value)
+  }
+  const n = Number(value)
+  if (value === null || value === '' || !Number.isFinite(n)) return fallback
+  return Math.min(1, Math.max(0, n))
+}
+
+/**
+ * A word for a slider position, for the readout beside it. Bands rather than a
+ * number, because "how hard is this" is the question being asked — but the
+ * underlying value stays continuous, so two positions inside one band really do
+ * play differently.
+ */
+export function strengthLabel(strength: Strength): string {
+  if (strength >= 0.95) return 'Hardest'
+  if (strength >= 0.75) return 'Hard'
+  if (strength >= 0.6) return 'Medium–hard'
+  if (strength >= 0.4) return 'Medium'
+  if (strength >= 0.25) return 'Easy–medium'
+  if (strength >= 0.05) return 'Easy'
+  return 'Easiest'
 }
 
 interface Weights {
@@ -77,6 +130,35 @@ const WEIGHTS: Record<Difficulty, Weights> = {
   },
 }
 
+const WEIGHT_KEYS = Object.keys(WEIGHTS.hard) as (keyof Weights)[]
+
+/**
+ * The scale is interpolated *through* the three profiles above rather than
+ * straight from easy to hard, so every measured level stays exactly where it
+ * was: 0 is easy, 0.5 is medium, 1 is hard, and each is reproduced bit for bit
+ * at its own position. Medium is not the midpoint of easy and hard — it was
+ * tuned separately, and a straight two-point ramp would have thrown that away.
+ *
+ * Interpolating each weight independently is safe because they are independent
+ * numbers, and monotonic in strength across all three profiles bar `openingSlack`
+ * (1 → 0.45 → 0.35), which is also monotonic. So nothing doubles back.
+ */
+function weightsAt(strength: Strength): Weights {
+  // NaN has to be caught explicitly rather than clamped: Math.max(0, NaN) is
+  // NaN, which would make every weight, and so every move score, NaN — and a
+  // board where no score compares greater than any other leaves the search with
+  // nothing acceptable to return at all.
+  const clamped = Number.isFinite(strength) ? Math.min(1, Math.max(0, strength)) : STRONGEST
+  const [from, to, t] =
+    clamped <= 0.5
+      ? ([WEIGHTS.easy, WEIGHTS.medium, clamped / 0.5] as const)
+      : ([WEIGHTS.medium, WEIGHTS.hard, (clamped - 0.5) / 0.5] as const)
+
+  const out = {} as Weights
+  for (const key of WEIGHT_KEYS) out[key] = from[key] + (to[key] - from[key]) * t
+  return out
+}
+
 /**
  * A per-seat tilt on the weights, so the three computers in a solo game are
  * three opponents rather than one opponent playing three times.
@@ -100,8 +182,8 @@ const STYLES: Record<Color, Style> = {
   green: { ownReach: 1.2, blocking: 1.2, centrality: 0.65 },
 }
 
-function weightsFor(difficulty: Difficulty, color: Color): Weights {
-  const base = WEIGHTS[difficulty]
+function weightsFor(strength: Strength, color: Color): Weights {
+  const base = weightsAt(strength)
   const style = STYLES[color]
   return {
     ...base,
@@ -166,9 +248,9 @@ export function scoreMoves(
   board: Board,
   player: PlayerState,
   opponents: Color[],
-  difficulty: Difficulty,
+  strength: Strength,
 ): ScoredMove[] {
-  const weights = weightsFor(difficulty, player.color)
+  const weights = weightsFor(strength, player.color)
   const isFirstMove = !player.hasPlayedFirstMove
   const scored: ScoredMove[] = []
 
@@ -203,10 +285,10 @@ export function chooseMove(
   board: Board,
   player: PlayerState,
   opponents: Color[],
-  difficulty: Difficulty,
+  strength: Strength,
   random: () => number = Math.random,
 ): Move | null {
-  const scored = scoreMoves(board, player, opponents, difficulty)
+  const scored = scoreMoves(board, player, opponents, strength)
   if (scored.length === 0) return null
 
   let best = scored[0]
@@ -214,7 +296,9 @@ export function chooseMove(
     if (candidate.score > best.score) best = candidate
   }
 
-  const { minSizeFraction, slack, openingSlack } = WEIGHTS[difficulty]
+  // The untilted weights on purpose: these three govern how many squares a move
+  // spends and how freely it may wander, which must not vary by seat.
+  const { minSizeFraction, slack, openingSlack } = weightsAt(strength)
 
   // Hold the number of squares steady first, then vary freely within that.
   // The floor is a fraction of what the best move spends rather than a fixed
@@ -258,7 +342,7 @@ export function chooseTimeoutMove(
   opponents: Color[],
   pieceId?: PieceId,
 ): Move | null {
-  const scored = scoreMoves(board, player, opponents, TIMEOUT_DIFFICULTY)
+  const scored = scoreMoves(board, player, opponents, TIMEOUT_STRENGTH)
   if (scored.length === 0) return null
 
   const forPiece = pieceId ? scored.filter((c) => c.move.pieceId === pieceId) : []
@@ -279,7 +363,7 @@ export function chooseTimeoutMove(
  * scores position heavily, and taking the median of `easy`'s would be close to
  * arbitrary since easy only counts squares.
  */
-const TIMEOUT_DIFFICULTY: Difficulty = 'medium'
+const TIMEOUT_STRENGTH: Strength = DIFFICULTY_STRENGTH.medium
 
 /** Guards against a bad move reaching applyMove, which throws. */
 export function isMoveLegal(board: Board, player: PlayerState, move: Move): boolean {

@@ -1,10 +1,43 @@
 .board {
-  --cell-empty: #1e293b;
+  /*
+   * Empty squares are a near-transparent *lift* rather than a solid fill, so the
+   * corner wash below shows through them. Lighter than the grid lines, which are
+   * this element's own background showing through the 1px gaps — that ordering
+   * is what keeps the mesh reading as dark seams between squares instead of
+   * inverting into a bright grid.
+   */
+  --cell-empty: rgba(226, 232, 240, 0.06);
+  /*
+   * Each corner's colour, already mixed down into the dark base rather than laid
+   * over it as a translucent wash. They have to be opaque for the blend below to
+   * interpolate between them cleanly — a see-through top layer would let the
+   * bottom one tint it, and blue's corner would come out contaminated with green.
+   */
+  --corner-blue: #1f3251;
+  --corner-yellow: #413a1d;
+  --corner-red: #46242a;
+  --corner-green: #193d2e;
+  position: relative;
   display: grid;
   grid-template-columns: repeat(20, 1fr);
   grid-template-rows: repeat(20, 1fr);
   gap: 1px;
-  background: #0f172a;
+  /*
+   * The four corner colours, interpolated bilinearly across the whole board, so
+   * each one fades evenly into both of its neighbours and all four meet as a
+   * neutral grey in the middle.
+   *
+   * Done as two horizontal gradients — this one along the bottom edge, and the
+   * top edge on ::before, cross-faded down over it — because that composition
+   * *is* bilinear interpolation, and a linear ramp has no falloff edge anywhere.
+   * Four radial gradients could not do this: every radial has a circular edge
+   * where it reaches transparent, which read as a quarter-circle of colour
+   * around each corner however wide or faint it was made.
+   *
+   * Turning with the board is correct — the colours belong to the corners, so
+   * they should follow them around.
+   */
+  background: linear-gradient(to right, var(--corner-green), var(--corner-red));
   border: 2px solid #334155;
   /*
    * Height of everything else stacked in .game, measured at its tallest (a
@@ -26,26 +59,47 @@
   touch-action: none;
 }
 
+/*
+ * The top edge's blue-to-yellow ramp, cross-faded downwards over the bottom
+ * edge's green-to-red one. The vertical mask is what makes the pair bilinear:
+ * every row is a linear blend of the two horizontal ramps, weighted by how far
+ * down the board it is.
+ *
+ * Absolutely positioned so it doesn't become a 401st grid item. `inset: 0` is
+ * measured from the padding box, so it stops neatly inside the border.
+ */
+.board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, var(--corner-blue), var(--corner-yellow));
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+  /* It sits under the squares and must never intercept a drag. */
+  pointer-events: none;
+}
+
 .board-cell {
   min-width: 0;
   min-height: 0;
   background: var(--cell-empty);
+  /* Above ::before, so the squares are not painted underneath the top ramp. */
+  position: relative;
+  z-index: 1;
 }
 
-/* Each colour's mandatory opening square, so the first move isn't a guess. */
+/*
+ * Each colour's mandatory opening square, so the first move isn't a guess. The
+ * faded colour of whoever opens there says *whose* corner it is, which the old
+ * neutral hatch could not; Board.tsx supplies the tint and drops it as soon as
+ * that colour has played.
+ */
 .board-cell.start-corner {
-  background: repeating-linear-gradient(
-    45deg,
-    #334155,
-    #334155 2px,
-    var(--cell-empty) 2px,
-    var(--cell-empty) 4px
-  );
-  box-shadow: inset 0 0 0 1px #475569;
+  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.35);
 }
 
 .board-cell.preview-valid {
-  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.9);
+  box-shadow: inset 0 0 0 2px rgba(248, 250, 252, 0.95);
 }
 
 /*
@@ -61,6 +115,22 @@
     #1e293b 2px,
     #1e293b 5px
   );
-  box-shadow: inset 0 0 0 1px #f8fafc;
+  box-shadow: inset 0 0 0 2px #f8fafc;
   opacity: 0.85;
+}
+
+/*
+ * A footprint square lying on top of a piece that is already down. The ring is
+ * drawn as a shadow rather than a background because the occupant's colour is
+ * set inline and has to keep showing through — you want to see both that this
+ * square is part of the piece in hand and what is blocking it. The second inset
+ * is a spread wide enough to wash the whole square, for the same reason.
+ *
+ * Raised, so the ring is not clipped by whichever neighbour paints next.
+ */
+.board-cell.preview-blocked {
+  box-shadow:
+    inset 0 0 0 2px #f8fafc,
+    inset 0 0 0 20px rgba(248, 250, 252, 0.3);
+  z-index: 2; /* above its neighbours, so the ring isn't clipped by them */
 }

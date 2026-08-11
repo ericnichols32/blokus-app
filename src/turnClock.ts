@@ -1,8 +1,14 @@
 import type { PieceId } from './game'
 
-/** Seconds to choose a piece, and then to get it down. */
-export const SELECT_MS = 15_000
-export const PLACE_MS = 15_000
+/** Seconds to choose a piece, and then to get it down. Configurable in settings. */
+export const DEFAULT_TURN_SECONDS = 15
+
+/** The shortest and longest a turn budget may be set to. */
+export const MIN_TURN_SECONDS = 5
+export const MAX_TURN_SECONDS = 120
+
+export const SELECT_MS = DEFAULT_TURN_SECONDS * 1000
+export const PLACE_MS = DEFAULT_TURN_SECONDS * 1000
 
 export type ClockPhase = 'select' | 'place'
 
@@ -31,8 +37,12 @@ export interface ClockState {
   since: number
 }
 
-export function startTurn(now: number): ClockState {
-  return { phase: 'select', selectLeft: SELECT_MS, placeLeft: PLACE_MS, since: now }
+/**
+ * Both budgets get the same length: the setting is "how long a turn gives you",
+ * and splitting it into two different numbers would be a knob nobody asked for.
+ */
+export function startTurn(now: number, budgetMs: number = SELECT_MS): ClockState {
+  return { phase: 'select', selectLeft: budgetMs, placeLeft: budgetMs, since: now }
 }
 
 /** Milliseconds left in the active phase, floored at zero. */

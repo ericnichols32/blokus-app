@@ -10,9 +10,15 @@
   font-weight: 600;
 }
 
-/* Shrinks to an ellipsis rather than pushing the buttons off a narrow screen. */
+/*
+ * Shrinks to an ellipsis rather than pushing the buttons off a narrow screen,
+ * and takes all the slack so everything after it is held against the far end.
+ * That has to live here rather than as a `margin-left: auto` on the first of
+ * those: with more than one of them, auto margins *share* the free space, and
+ * the clock would drift in from the edge whenever the turn button was present.
+ */
 .status-bar .turn-label {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -20,11 +26,10 @@
 }
 
 /*
- * Pushed to the far end of the status bar, so the number sits away from the
- * turn label and can be read at a glance without hunting for it.
+ * Sits at the far end of the status bar, so the number is away from the turn
+ * label and can be read at a glance without hunting for it.
  */
 .status-bar .clock {
-  margin-left: auto;
   flex: 0 0 auto;
   display: flex;
   align-items: baseline;
@@ -33,6 +38,12 @@
   border-radius: 999px;
   border: 1px solid #334155;
   background: #1e293b;
+}
+
+.status-bar .turn-board {
+  flex: 0 0 auto;
+  font-size: 19px;
+  line-height: 1;
 }
 
 .status-bar .clock-what {

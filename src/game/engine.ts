@@ -30,7 +30,14 @@ export interface Move {
 
 const ALL_PIECE_IDS: PieceId[] = PIECE_DEFINITIONS.map((p) => p.id)
 
-export function createGame(colors: Color[]): GameState {
+/**
+ * `firstColor` moves the *starting point* of the turn order without reordering
+ * it. The players array stays in board order, so play still runs clockwise from
+ * whoever opens — red first means red, green, blue, yellow — which is how a real
+ * game deals with someone other than blue going first.
+ */
+export function createGame(colors: Color[], firstColor?: Color): GameState {
+  const start = firstColor ? colors.indexOf(firstColor) : 0
   return {
     board: createEmptyBoard(),
     players: colors.map((color) => ({
@@ -40,7 +47,8 @@ export function createGame(colors: Color[]): GameState {
       lastPiecePlayedId: null,
       passedOut: false,
     })),
-    currentPlayerIndex: 0,
+    // A colour that isn't playing would give -1, which is not a turn.
+    currentPlayerIndex: start === -1 ? 0 : start,
     placedPieces: [],
     gameOver: false,
   }
@@ -188,7 +196,11 @@ export function advanceTurn(state: GameState): GameState {
  * something impossible.
  */
 export function replayMoves(colors: Color[], moves: PlacedPiece[]): GameState {
-  let state = createGame(colors)
+  // Whoever made the first move is by definition whoever went first, so the
+  // starting point is recovered from the moves rather than having to be passed
+  // in alongside them. Without this, replaying a game that opened on anything
+  // but blue would diverge on move zero and throw — which is what undo does.
+  let state = createGame(colors, moves[0]?.color)
 
   for (const [i, move] of moves.entries()) {
     const player = state.players[state.currentPlayerIndex]

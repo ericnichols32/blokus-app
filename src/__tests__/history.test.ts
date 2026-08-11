@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { applyMove, chooseMove, COLORS } from '../game'
+import { applyMove, chooseMove, COLORS, DIFFICULTY_STRENGTH as S } from '../game'
 import type { GameState } from '../game'
 import { clearHistory, loadHistory, recordFinishedGame, summarise } from '../history'
 import { createPassAndPlay, createSolo } from '../session'
@@ -29,7 +29,7 @@ function playToEnd(session: Session): Session {
     if (guard++ > 200) throw new Error('game did not finish')
     const player = state.players[state.currentPlayerIndex]
     const opponents = state.players.filter((p) => p !== player).map((p) => p.color)
-    const move = chooseMove(state.board, player, opponents, 'hard')
+    const move = chooseMove(state.board, player, opponents, S.hard)
     if (!move) break
     state = applyMove(state, move)
   }
@@ -45,12 +45,12 @@ beforeEach(() => {
 
 describe('recordFinishedGame', () => {
   it('ignores a game still in progress', () => {
-    expect(recordFinishedGame(createSolo('blue', 'hard'))).toBeNull()
+    expect(recordFinishedGame(createSolo('blue', S.hard))).toBeNull()
     expect(loadHistory()).toEqual([])
   })
 
   it('records a finished game', () => {
-    const finished = playToEnd(createSolo('blue', 'hard'))
+    const finished = playToEnd(createSolo('blue', S.hard))
     const record = recordFinishedGame(finished)
 
     expect(record).not.toBeNull()
@@ -61,7 +61,7 @@ describe('recordFinishedGame', () => {
   it('will not record the same game twice', () => {
     // The effect that calls this re-runs on every reload while a finished game
     // is still loaded, so this is the property that stops history inflating.
-    const finished = playToEnd(createSolo('blue', 'hard'))
+    const finished = playToEnd(createSolo('blue', S.hard))
 
     expect(recordFinishedGame(finished)).not.toBeNull()
     expect(recordFinishedGame(finished)).toBeNull()
@@ -70,8 +70,8 @@ describe('recordFinishedGame', () => {
   })
 
   it('records a second, different game alongside the first', () => {
-    recordFinishedGame(playToEnd(createSolo('blue', 'hard')))
-    recordFinishedGame(playToEnd(createSolo('red', 'easy')))
+    recordFinishedGame(playToEnd(createSolo('blue', S.hard)))
+    recordFinishedGame(playToEnd(createSolo('red', S.easy)))
 
     const history = loadHistory()
     expect(history).toHaveLength(2)
@@ -89,7 +89,7 @@ describe('recordFinishedGame', () => {
       removeItem: () => {},
     })
 
-    const finished = playToEnd(createSolo('blue', 'hard'))
+    const finished = playToEnd(createSolo('blue', S.hard))
     expect(() => recordFinishedGame(finished)).not.toThrow()
     expect(loadHistory()).toEqual([])
   })
@@ -97,12 +97,12 @@ describe('recordFinishedGame', () => {
 
 describe('summarise', () => {
   it('captures everything the asked-for stats need', () => {
-    const finished = playToEnd(createSolo('green', 'medium'))
+    const finished = playToEnd(createSolo('green', S.medium))
     const record = summarise(finished, new Date('2026-08-10T12:00:00Z'))
 
     expect(record.mode).toBe('solo')
     expect(record.yourColor).toBe('green')
-    expect(record.difficulty).toBe('medium')
+    expect(record.strength).toBe(S.medium)
     expect(record.finishedAt).toBe('2026-08-10T12:00:00.000Z')
     expect(record.movesPlayed).toBe(finished.state.placedPieces.length)
     expect(record.players).toHaveLength(4)
@@ -120,7 +120,7 @@ describe('summarise', () => {
   })
 
   it('lets you work out which pieces were played', () => {
-    const finished = playToEnd(createSolo('blue', 'hard'))
+    const finished = playToEnd(createSolo('blue', S.hard))
     const record = summarise(finished)
 
     for (const player of record.players) {
@@ -136,7 +136,7 @@ describe('summarise', () => {
 
     expect(record.mode).toBe('pass-and-play')
     expect(record.yourColor).toBeNull()
-    expect(record.difficulty).toBeNull()
+    expect(record.strength).toBeNull()
     expect(record.players.every((p) => p.seat === 'human')).toBe(true)
   })
 
@@ -198,7 +198,7 @@ describe('the stored history is capped', () => {
     }))
     storage.set('blokus:history:v1', JSON.stringify(existing))
 
-    recordFinishedGame(playToEnd(createSolo('blue', 'hard')))
+    recordFinishedGame(playToEnd(createSolo('blue', S.hard)))
 
     const history = loadHistory()
     expect(history).toHaveLength(500)
@@ -211,7 +211,7 @@ describe('the stored history is capped', () => {
 
 describe('clearHistory', () => {
   it('empties the history', () => {
-    recordFinishedGame(playToEnd(createSolo('blue', 'hard')))
+    recordFinishedGame(playToEnd(createSolo('blue', S.hard)))
     expect(loadHistory()).toHaveLength(1)
 
     clearHistory()

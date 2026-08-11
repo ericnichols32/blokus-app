@@ -1,5 +1,5 @@
 import { COLORS, finalizeScores } from './game'
-import type { Color, Difficulty, PieceId } from './game'
+import type { Color, PieceId, Strength } from './game'
 import type { GameMode, SeatKind, Session } from './session'
 
 /**
@@ -18,8 +18,8 @@ export interface GameRecord {
   id: string
   finishedAt: string
   mode: GameMode
-  /** The computers' setting in a solo game. */
-  difficulty: Difficulty | null
+  /** The computers' setting in a solo game, on the 0–1 strength scale. */
+  strength: Strength | null
   /** Whether the human turns were on a clock. */
   timed: boolean
   /** Your colour in a solo game; null when every seat was a person. */
@@ -91,7 +91,7 @@ export function summarise(session: Session, finishedAt = new Date()): GameRecord
     id: session.id,
     finishedAt: finishedAt.toISOString(),
     mode: session.mode,
-    difficulty: session.mode === 'solo' ? (computer?.difficulty ?? null) : null,
+    strength: session.mode === 'solo' ? (computer?.strength ?? null) : null,
     timed: session.timed,
     yourColor: session.mode === 'solo' ? yourColor : null,
     movesPlayed: session.state.placedPieces.length,

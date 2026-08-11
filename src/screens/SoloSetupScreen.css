@@ -35,3 +35,43 @@
   font-size: 13px;
   color: #64748b;
 }
+
+/*
+ * The draw for who opens, which takes over the screen for about two seconds.
+ * Selector carries `.screen.inner` so it outranks that rule's
+ * `justify-content: flex-start` — matching on two classes alone ties on
+ * specificity and then loses on source order, leaving this pinned to the top.
+ */
+.screen.inner.draw {
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.draw-caption {
+  margin: 0;
+  font-size: 15px;
+  color: #94a3b8;
+}
+
+.draw-swatch {
+  width: 108px;
+  height: 108px;
+  border-radius: 22px;
+  /* Scale rather than colour, so the landing reads even mid-transition. */
+  transition: transform 0.25s ease;
+}
+
+.draw-swatch.settled {
+  transform: scale(1.16);
+  box-shadow: 0 0 0 4px rgba(248, 250, 252, 0.9);
+}
+
+.draw-result {
+  margin: 0;
+  min-height: 28px; /* reserved, so settling doesn't shift the swatch upward */
+  font-size: 21px;
+  font-weight: 700;
+  color: #f8fafc;
+}

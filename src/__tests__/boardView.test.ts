@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boardToScreen, rotationFacing, screenToBoard, VIEW_ROTATIONS } from '../boardView'
+import { boardToScreen, paintCell, rotationFacing, screenToBoard, VIEW_ROTATIONS } from '../boardView'
 import { BOARD_SIZE, COLORS, START_CORNERS } from '../game'
 import type { Point } from '../game'
 
@@ -41,6 +41,45 @@ describe('boardToScreen', () => {
       const moved = corners.map((c) => boardToScreen(c, rotation))
       expect(new Set(moved.map(String))).toEqual(new Set(corners.map(String)))
     }
+  })
+})
+
+describe('paintCell', () => {
+  it('draws the footprint on squares that are already taken', () => {
+    // The regression this exists for: an overlapped square used to be left as
+    // plain `placed`, so the part of the piece that was in the way vanished.
+    expect(paintCell('red', true, false, null, true)).toEqual({ kind: 'blocked', color: 'red' })
+  })
+
+  it('reports every square of the footprint, however much of it is blocked', () => {
+    const footprint: ReturnType<typeof paintCell>[] = [
+      paintCell(null, true, false, null, true),
+      paintCell('red', true, false, null, true),
+      paintCell('green', true, false, null, true),
+    ]
+    expect(footprint.every((p) => p.kind === 'footprint' || p.kind === 'blocked')).toBe(true)
+  })
+
+  it('leaves occupied squares alone when nothing is being dragged over them', () => {
+    expect(paintCell('blue', false, false, null, true)).toEqual({ kind: 'placed', color: 'blue' })
+  })
+
+  it('distinguishes a legal footprint square from an illegal one', () => {
+    expect(paintCell(null, true, true, null, true)).toEqual({ kind: 'footprint', valid: true })
+    expect(paintCell(null, true, false, null, true)).toEqual({ kind: 'footprint', valid: false })
+  })
+
+  it('marks a start corner only until that colour has opened', () => {
+    expect(paintCell(null, false, false, 'yellow', false)).toEqual({ kind: 'start', color: 'yellow' })
+    expect(paintCell(null, false, false, 'yellow', true)).toEqual({ kind: 'empty' })
+  })
+
+  it('lets the footprint win over a start corner marker', () => {
+    expect(paintCell(null, true, true, 'blue', false)).toEqual({ kind: 'footprint', valid: true })
+  })
+
+  it('calls a plain empty square empty', () => {
+    expect(paintCell(null, false, false, null, true)).toEqual({ kind: 'empty' })
   })
 })
 

@@ -4,7 +4,14 @@ import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { SoloSetupScreen } from './screens/SoloSetupScreen'
-import { clearSession, createPassAndPlay, createSolo, loadSession, saveSession } from './session'
+import {
+  clearSession,
+  createPassAndPlay,
+  createSolo,
+  drawFirstColor,
+  loadSession,
+  saveSession,
+} from './session'
 import type { Session } from './session'
 import { loadSettings, saveSettings } from './settings'
 import type { Settings } from './settings'
@@ -12,7 +19,7 @@ import { loadHistory, recordFinishedGame } from './history'
 import { clearAccount, hasBeenPrompted, loadAccount, markPrompted, saveAccount } from './account'
 import type { Account } from './account'
 import { clearSyncState, syncAccount } from './sync'
-import type { Color, Difficulty, GameState } from './game'
+import type { Color, GameState } from './game'
 import './App.css'
 
 type Screen = 'home' | 'solo-setup' | 'settings' | 'account' | 'game'
@@ -90,8 +97,8 @@ function App() {
     setSession((current) => (current ? { ...current, state } : current))
   }, [])
 
-  function startSolo(color: Color, timed: boolean) {
-    setSession(createSolo(color, settings.difficulty, timed))
+  function startSolo(color: Color, timed: boolean, firstColor: Color) {
+    setSession(createSolo(color, settings.strength, timed, firstColor))
     setScreen('game')
   }
 
@@ -102,16 +109,18 @@ function App() {
 
   function playAgain() {
     if (!session) return
-    // Same opponents, fresh board. Difficulty comes from the seats rather than
+    // Same opponents, fresh board. Strength comes from the seats rather than
     // from settings, so changing the setting mid-rematch doesn't move the
     // goalposts on a run of games you're already playing.
     const seats = session.seats
     const humanColor = (Object.keys(seats) as Color[]).find((c) => seats[c].kind === 'human')
-    const difficulty = (Object.values(seats).find((s) => s.kind === 'computer')?.difficulty ??
-      settings.difficulty) as Difficulty
+    const strength =
+      Object.values(seats).find((s) => s.kind === 'computer')?.strength ?? settings.strength
 
     if (session.mode === 'solo' && humanColor) {
-      setSession(createSolo(humanColor, difficulty, session.timed))
+      // A fresh draw for who opens, the same as any other new game — carrying
+      // the last one over would hand the same player the advantage every round.
+      setSession(createSolo(humanColor, strength, session.timed, drawFirstColor()))
     } else setSession(createPassAndPlay())
   }
 
@@ -162,7 +171,13 @@ function App() {
   }
 
   if (screen === 'solo-setup') {
-    return <SoloSetupScreen onStart={startSolo} onCancel={() => setScreen('home')} />
+    return (
+      <SoloSetupScreen
+        turnSeconds={settings.turnSeconds}
+        onStart={startSolo}
+        onCancel={() => setScreen('home')}
+      />
+    )
   }
 
   if (screen === 'settings') {

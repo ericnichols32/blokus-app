@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { chooseMove } from '../game'
+import { chooseMove, DIFFICULTY_STRENGTH as S } from '../game'
 import { applyMove } from '../game'
 import type { GameState } from '../game'
-import { canUndo, createPassAndPlay, createSolo, undo } from '../session'
+import { canUndo, createPassAndPlay, createSolo, drawFirstColor, undo } from '../session'
 import type { Session } from '../session'
+import { COLORS } from '../game'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -14,7 +15,7 @@ function play(session: Session, count: number): Session {
   for (let i = 0; i < count && !state.gameOver; i++) {
     const player = state.players[state.currentPlayerIndex]
     const opponents = state.players.filter((p) => p !== player).map((p) => p.color)
-    const move = chooseMove(state.board, player, opponents, 'medium')
+    const move = chooseMove(state.board, player, opponents, S.medium)
     if (!move) break
     state = applyMove(state, move)
   }
@@ -22,20 +23,45 @@ function play(session: Session, count: number): Session {
   return { ...session, state }
 }
 
+describe('drawFirstColor', () => {
+  it('can land on any of the four, yours included', () => {
+    const seen = new Set(Array.from({ length: 400 }, () => drawFirstColor()))
+    expect(seen).toEqual(new Set(COLORS))
+  })
+
+  it('picks each colour with roughly equal chance', () => {
+    // A flat index into COLORS, so a fixed random maps to a known colour.
+    expect(drawFirstColor(() => 0)).toBe(COLORS[0])
+    expect(drawFirstColor(() => 0.999)).toBe(COLORS[3])
+    expect(drawFirstColor(() => 0.5)).toBe(COLORS[2])
+  })
+})
+
 describe('undo', () => {
+  it('takes back a game that opened on a colour other than blue', () => {
+    // The replay path underneath undo used to assume blue opened, so this is
+    // the case that would have thrown rather than rewinding.
+    const played = play(createSolo('blue', S.medium, false, 'green'), 7)
+    expect(played.state.placedPieces[0].color).toBe('green')
+
+    const rewound = undo(played)
+    expect(rewound.state.placedPieces.length).toBeLessThan(played.state.placedPieces.length)
+    expect(rewound.state.players[rewound.state.currentPlayerIndex].color).toBe('blue')
+  })
+
   it('has nothing to take back before you have moved', () => {
-    expect(canUndo(createSolo('blue', 'medium'))).toBe(false)
+    expect(canUndo(createSolo('blue', S.medium))).toBe(false)
     expect(canUndo(createPassAndPlay())).toBe(false)
   })
 
   it('leaves a session with no moves untouched', () => {
-    const fresh = createSolo('blue', 'medium')
+    const fresh = createSolo('blue', S.medium)
     expect(undo(fresh)).toEqual(fresh)
   })
 
   it('in solo, rewinds past the computers back to your own turn', () => {
     // Blue is the human, so a full round is: you, then three computers.
-    const played = play(createSolo('blue', 'medium'), 8)
+    const played = play(createSolo('blue', S.medium), 8)
     expect(played.state.placedPieces).toHaveLength(8)
 
     const rewound = undo(played)
@@ -49,7 +75,7 @@ describe('undo', () => {
   })
 
   it('in solo, undoing your only move empties the board', () => {
-    const played = play(createSolo('blue', 'medium'), 4)
+    const played = play(createSolo('blue', S.medium), 4)
     const rewound = undo(played)
 
     expect(rewound.state.placedPieces).toHaveLength(0)
@@ -59,7 +85,7 @@ describe('undo', () => {
 
   it('rewinds to your own move even when you are not the first player', () => {
     // Green moves last, so its first move is the 4th of the game.
-    const played = play(createSolo('green', 'medium'), 6)
+    const played = play(createSolo('green', S.medium), 6)
     const rewound = undo(played)
 
     expect(rewound.state.placedPieces).toHaveLength(3)

@@ -1,5 +1,5 @@
-import { BOARD_SIZE, COLORS, createGame, replayMoves } from './game'
-import type { Color, Difficulty, GameState } from './game'
+import { BOARD_SIZE, COLORS, createGame, readStrength, replayMoves } from './game'
+import type { Color, GameState, Strength } from './game'
 
 /**
  * Lives here rather than alongside the history it serves, because history.ts
@@ -19,7 +19,7 @@ export type SeatKind = 'human' | 'computer'
 export interface Seat {
   kind: SeatKind
   /** Only meaningful for computer seats. */
-  difficulty?: Difficulty
+  strength?: Strength
 }
 
 export type GameMode = 'solo' | 'pass-and-play'
@@ -44,18 +44,46 @@ export interface Session {
  */
 const STORAGE_KEY = 'blokus:session:v2'
 
-export function createSolo(playerColor: Color, difficulty: Difficulty, timed = false): Session {
+export function createSolo(
+  playerColor: Color,
+  strength: Strength,
+  timed = false,
+  firstColor?: Color,
+): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) {
-    seats[color] = color === playerColor ? { kind: 'human' } : { kind: 'computer', difficulty }
+    seats[color] = color === playerColor ? { kind: 'human' } : { kind: 'computer', strength }
   }
-  return { id: newGameId(), mode: 'solo', seats, timed, state: createGame(COLORS) }
+  return { id: newGameId(), mode: 'solo', seats, timed, state: createGame(COLORS, firstColor) }
+}
+
+/** Draws the colour that opens. Every seat has the same chance, including yours. */
+export function drawFirstColor(random: () => number = Math.random): Color {
+  return COLORS[Math.floor(random() * COLORS.length)]
 }
 
 export function createPassAndPlay(): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) seats[color] = { kind: 'human' }
   return { id: newGameId(), mode: 'pass-and-play', seats, timed: false, state: createGame(COLORS) }
+}
+
+/**
+ * Carries a resumed game's opponents over from when seats named a difficulty
+ * instead of a strength. Without this the seats would come back with no strength
+ * at all and fall through to the default, quietly promoting a game in progress
+ * to the hardest setting between one launch and the next.
+ */
+function migrateSeats(seats: Record<Color, Seat>): Record<Color, Seat> {
+  const out = {} as Record<Color, Seat>
+  for (const color of COLORS) {
+    const seat = seats[color] as Seat & { difficulty?: unknown }
+    out[color] =
+      seat.strength === undefined && seat.difficulty !== undefined
+        ? { kind: seat.kind, strength: readStrength(seat.difficulty) }
+        : seat
+  }
+  return out
 }
 
 export function loadSession(): Session | null {
@@ -78,7 +106,12 @@ export function loadSession(): Session | null {
     // Games saved before ids or the clock existed are filled in rather than
     // thrown away, since a game in progress is worth more than a tidy format.
     // A save from before timed mode was untimed by definition.
-    return { ...parsed, id: parsed.id || newGameId(), timed: parsed.timed === true }
+    return {
+      ...parsed,
+      id: parsed.id || newGameId(),
+      timed: parsed.timed === true,
+      seats: migrateSeats(parsed.seats),
+    }
   } catch {
     return null
   }

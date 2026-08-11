@@ -12,10 +12,12 @@ import {
   chooseTimeoutMove,
   finalizeScores,
   getOrientationCells,
+  STRONGEST,
 } from '../game'
 import type { Cell, Color, GameState, PieceId, Point } from '../game'
 import { rotateCells } from '../game'
 import { rotationFacing, screenToBoard } from '../boardView'
+import type { ViewRotation } from '../boardView'
 import type { Session } from '../session'
 import type { Settings } from '../settings'
 import { phaseFor, remaining, secondsLeft, startTurn, switchPhase } from '../turnClock'
@@ -121,7 +123,7 @@ export function GameScreen({
    * whoever picks the phone up is looking at it from their own corner; in solo
    * it is fixed to your seat, since you are always the same colour.
    */
-  const viewRotation = useMemo(() => {
+  const seatRotation = useMemo(() => {
     if (session.mode === 'solo') {
       const yours = (Object.keys(session.seats) as Color[]).find(
         (c) => session.seats[c].kind === 'human',
@@ -130,6 +132,22 @@ export function GameScreen({
     }
     return rotationFacing(currentPlayer.color)
   }, [session.mode, session.seats, currentPlayer.color])
+
+  /** Quarter-turns the player has added by hand, on top of their seat's angle. */
+  const [nudge, setNudge] = useState(0)
+
+  /*
+   * Pass and play turns the board to face whoever is holding the phone, so a
+   * hand-turn has to stop applying when the phone changes hands — otherwise one
+   * player straightening the board leaves it crooked for everyone after them.
+   * In solo the seat angle never moves, so the nudge is left alone and behaves
+   * as an outright rotation.
+   */
+  useEffect(() => {
+    if (session.mode !== 'solo') setNudge(0)
+  }, [session.mode, currentPlayer.color])
+
+  const viewRotation = (((seatRotation + nudge) % 4) + 4) % 4 as ViewRotation
 
   const clearSelection = useCallback(() => {
     setSelectedPieceId(null)
@@ -146,12 +164,7 @@ export function GameScreen({
       const opponents = gameState.players
         .filter((p) => p.color !== currentPlayer.color)
         .map((p) => p.color)
-      const move = chooseMove(
-        gameState.board,
-        currentPlayer,
-        opponents,
-        currentSeat.difficulty ?? 'hard',
-      )
+      const move = chooseMove(gameState.board, currentPlayer, opponents, currentSeat.strength ?? STRONGEST)
       // advanceTurn only stops on players who have a move, so null would mean
       // the engine and the search disagree — better to stall than to crash.
       if (move) onStateChange(applyMove(gameState, move))
@@ -200,6 +213,11 @@ export function GameScreen({
         ? currentCells.map(([c, r]) => [clampedAnchor[0] + c, clampedAnchor[1] + r] as Point)
         : [],
     [clampedAnchor, currentCells],
+  )
+
+  const awaitingFirstMove = useMemo(
+    () => gameState.players.filter((p) => !p.hasPlayedFirstMove).map((p) => p.color),
+    [gameState.players],
   )
 
   const previewCheck = useMemo(() => {
@@ -275,8 +293,8 @@ export function GameScreen({
   // passed out the turn can come back round to the same player — and a clock
   // that only reset when the colour changed would then never reset at all.
   useEffect(() => {
-    setClock(clockRunning ? startTurn(Date.now()) : null)
-  }, [clockRunning, gameState.placedPieces.length])
+    setClock(clockRunning ? startTurn(Date.now(), settings.turnSeconds * 1000) : null)
+  }, [clockRunning, gameState.placedPieces.length, settings.turnSeconds])
 
   // Picking a piece up stops the selection clock and starts the placement one;
   // putting it back does the reverse. Neither is refilled — see turnClock.ts.
@@ -481,6 +499,19 @@ export function GameScreen({
             <span className="clock-secs">{countdown}</span>
           </span>
         )}
+
+        {/* Up here rather than in the row below, which holds Rotate and Flip for
+            the piece in hand — two controls both called "rotate", one turning the
+            piece and one the whole board, is the confusion worth avoiding. */}
+        <button
+          type="button"
+          className="icon-btn turn-board"
+          onClick={() => setNudge((n) => n + 1)}
+          aria-label="Turn the board a quarter turn"
+          title="Turn the board"
+        >
+          ⟳
+        </button>
       </header>
 
       {settings.showLiveScores && <ScoreStrip session={session} />}
@@ -493,6 +524,7 @@ export function GameScreen({
           previewColor={hasSelection ? currentPlayer.color : null}
           previewValid={previewCheck?.valid ?? false}
           rotation={viewRotation}
+          awaitingFirstMove={awaitingFirstMove}
           onPointerDown={handleBoardDragStart}
           onPointerMove={handleDragMove}
           onPointerUp={handleDragEnd}

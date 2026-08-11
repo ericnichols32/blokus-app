@@ -8,6 +8,109 @@
   color: #64748b;
 }
 
+.row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.row-label .sub {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* The label and its current value on one line, value hard right. */
+.readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.readout strong {
+  color: #93c5fd;
+  font-weight: 600;
+}
+
+.strength-slider {
+  width: 100%;
+  height: 44px; /* a thumb-sized target, though the track drawn is thinner */
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.strength-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  /* Left-to-right, so the track itself reads as easy up to hard. */
+  background: linear-gradient(to right, #334155, #3b82f6);
+}
+
+.strength-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #334155, #3b82f6);
+}
+
+.strength-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  margin-top: -10px; /* centres the thumb on the 6px track */
+  border-radius: 50%;
+  border: 2px solid #0f172a;
+  background: #f8fafc;
+}
+
+.strength-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #0f172a;
+  background: #f8fafc;
+}
+
+.scale-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -4px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Presets and the free-entry field on one line, wrapping on a narrow phone. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip,
+.chip-input {
+  min-height: 44px; /* a comfortable thumb target */
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 16px;
+}
+
+.chip.selected {
+  border-color: #3b82f6;
+  background: #1d3a6b;
+}
+
+.chip-input {
+  width: 84px;
+  margin-left: auto;
+  text-align: center;
+}
+
 /* A whole-row target rather than a small switch, so the label is tappable too. */
 .toggle-row {
   display: flex;
