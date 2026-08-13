@@ -347,16 +347,35 @@ export function listEntry(game: OnlineGame, playerId: string): ListEntry {
   return { game, yourTurn, finished: state.gameOver, status: statusLine(game, state, yourTurn) }
 }
 
+/** Your games, split by what each one is waiting for. */
+export interface GroupedGames {
+  /** Waiting on you. The only pile that needs doing anything about. */
+  yours: ListEntry[]
+  /** Waiting on somebody else. */
+  theirs: ListEntry[]
+  /** Over. Kept apart from the two live piles rather than mixed in. */
+  finished: ListEntry[]
+}
+
 /**
- * Your games: the ones waiting on you first, then the rest by most recent move,
- * with finished games below both. The list is a to-do before it is a history.
+ * Splits your games into the three piles the list shows, each newest first.
+ *
+ * Grouped rather than sorted into one run, because the question the screen
+ * exists to answer — "is anything waiting on me?" — is answered by a heading
+ * far faster than by reading down a list and noticing where the green stops.
  */
-export function sortForPlayer(games: OnlineGame[], playerId: string): ListEntry[] {
-  return games
-    .map((game) => listEntry(game, playerId))
-    .sort((a, b) => {
-      if (a.finished !== b.finished) return a.finished ? 1 : -1
-      if (a.yourTurn !== b.yourTurn) return a.yourTurn ? -1 : 1
-      return (b.game.updatedAt ?? '').localeCompare(a.game.updatedAt ?? '')
-    })
+export function groupForPlayer(games: OnlineGame[], playerId: string): GroupedGames {
+  const grouped: GroupedGames = { yours: [], theirs: [], finished: [] }
+
+  for (const game of games) {
+    const entry = listEntry(game, playerId)
+    if (entry.finished) grouped.finished.push(entry)
+    else if (entry.yourTurn) grouped.yours.push(entry)
+    else grouped.theirs.push(entry)
+  }
+
+  for (const pile of [grouped.yours, grouped.theirs, grouped.finished]) {
+    pile.sort((a, b) => (b.game.updatedAt ?? '').localeCompare(a.game.updatedAt ?? ''))
+  }
+  return grouped
 }

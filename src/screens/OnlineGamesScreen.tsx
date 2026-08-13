@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { COLOR_HEX } from '../colors'
 import { isOnline } from '../backend'
-import { loadGames, describePlayers, yourColorIn } from '../onlineActions'
+import { loadGames, describePlayers, describeSetup, yourColorIn } from '../onlineActions'
+import { opponentsOf } from '../online'
 import { OnlineError } from '../onlineActions'
-import type { ListEntry } from '../online'
+import type { GroupedGames, ListEntry } from '../online'
 import type { Account } from '../account'
 import './OnlineGamesScreen.css'
 
@@ -38,7 +39,7 @@ export function OnlineGamesScreen({
   onSignIn,
   onClose,
 }: OnlineGamesScreenProps) {
-  const [games, setGames] = useState<ListEntry[] | null>(null)
+  const [games, setGames] = useState<GroupedGames | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -135,7 +136,7 @@ export function OnlineGamesScreen({
 
       {games === null ? (
         <p className="note">{loading ? 'Loading your games…' : ''}</p>
-      ) : games.length === 0 ? (
+      ) : games.yours.length + games.theirs.length + games.finished.length === 0 ? (
         <section className="empty">
           <p className="empty-title">No games yet</p>
           <p className="empty-sub">
@@ -144,9 +145,65 @@ export function OnlineGamesScreen({
           </p>
         </section>
       ) : (
+        <>
+          {/* Shown even when empty, unlike the piles below it. "Is anything
+              waiting on me" is the question this screen exists to answer, and a
+              missing heading answers it only by implication. */}
+          <Pile
+            heading="Your turn"
+            accent
+            entries={games.yours}
+            playerId={account.playerId}
+            onOpenGame={onOpenGame}
+            emptyNote="Nothing waiting on you."
+          />
+          {/* Only this pile repeats a status on each row, because "their turn"
+              doesn't say whose — and with three friends in a game, that is the
+              thing you actually want to know. */}
+          <Pile
+            heading="Their turn"
+            showStatus
+            entries={games.theirs}
+            playerId={account.playerId}
+            onOpenGame={onOpenGame}
+          />
+          <Pile
+            heading="Finished"
+            entries={games.finished}
+            playerId={account.playerId}
+            onOpenGame={onOpenGame}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+interface PileProps {
+  heading: string
+  entries: ListEntry[]
+  playerId: string
+  onOpenGame: (gameId: string) => void
+  /** Given only for a pile worth showing empty; the rest just disappear. */
+  emptyNote?: string
+  /** Carries the "this needs you" green, now that no row does. */
+  accent?: boolean
+  /** Whether each row repeats its status. Only useful where it adds a name. */
+  showStatus?: boolean
+}
+
+function Pile({ heading, entries, playerId, onOpenGame, emptyNote, accent, showStatus }: PileProps) {
+  if (entries.length === 0 && !emptyNote) return null
+
+  return (
+    <section>
+      <h2 className={accent ? 'now' : ''}>{heading}</h2>
+      {entries.length === 0 ? (
+        <p className="note">{emptyNote}</p>
+      ) : (
         <ul className="game-list">
-          {games.map((entry) => {
-            const yours = yourColorIn(entry.game, account.playerId)
+          {entries.map((entry) => {
+            const yours = yourColorIn(entry.game, playerId)
             return (
               <li key={entry.game.id}>
                 <button type="button" onClick={() => onOpenGame(entry.game.id)}>
@@ -156,10 +213,23 @@ export function OnlineGamesScreen({
                     aria-hidden="true"
                   />
                   <span className="game-main">
-                    <span className={`game-status ${entry.yourTurn ? 'now' : ''}`}>
-                      {entry.status}
+                    {/* The people are the headline now that the heading above
+                        carries whose turn it is. */}
+                    <span className="game-who">{describePlayers(entry.game, playerId)}</span>
+                    <span className="game-detail">
+                      {[
+                        // Naming who it waits on only helps when there is more
+                        // than one candidate. Against a single friend the row
+                        // above already names them, and repeating it reads as a
+                        // stutter.
+                        showStatus && opponentsOf(entry.game, playerId).length > 1
+                          ? entry.status
+                          : '',
+                        describeSetup(entry.game, playerId),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </span>
-                    <span className="game-who">{describePlayers(entry.game, account.playerId)}</span>
                   </span>
                   <span className="game-when">{ago(entry.game.updatedAt)}</span>
                 </button>
@@ -168,6 +238,6 @@ export function OnlineGamesScreen({
           })}
         </ul>
       )}
-    </div>
+    </section>
   )
 }

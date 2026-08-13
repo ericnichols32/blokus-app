@@ -85,22 +85,33 @@
   min-width: 0;
 }
 
-.game-status {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-/* The one thing the screen exists to answer: which of these needs me. */
-.game-status.now {
+/* The one thing the screen exists to answer: which of these needs me. Carried by
+   the heading rather than by every row, which would say it once per game.
+   Matched on .screen.inner so it outranks that rule's own h2 colour, which is
+   otherwise equally specific and wins on source order. */
+.screen.inner h2.now {
   color: #4ade80;
 }
 
 .game-who {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-detail {
   font-size: 13px;
   color: #94a3b8;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* An empty detail line would otherwise hold the row open by its line height. */
+.game-detail:empty {
+  display: none;
 }
 
 .game-when {

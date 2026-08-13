@@ -10,6 +10,7 @@ import {
   OnlineError,
   StaleTurnError,
   describePlayers,
+  describeSetup,
   loadGames,
   recordIfFinished,
   refreshGame,
@@ -149,8 +150,12 @@ describe('startGame', () => {
   it('stores a game both people can find', async () => {
     const game = await startGame(me, ['dave'], 'double', S.hard)
 
-    expect((await loadGames('p-eric')).map((e) => e.game.id)).toEqual([game.id])
-    expect((await loadGames('p-dave')).map((e) => e.game.id)).toEqual([game.id])
+    // Whoever the draw put on turn sees it under one heading and the other under
+    // the other, but both find the same game.
+    const mine = await loadGames('p-eric')
+    const theirs = await loadGames('p-dave')
+    expect([...mine.yours, ...mine.theirs].map((e) => e.game.id)).toEqual([game.id])
+    expect([...theirs.yours, ...theirs.theirs].map((e) => e.game.id)).toEqual([game.id])
   })
 
   it('seats two colors each when asked', async () => {
@@ -192,7 +197,7 @@ describe('startGame', () => {
     )
 
     await expect(startGame(me, ['dave'], 'double', S.hard)).rejects.toThrow(OnlineError)
-    expect(await loadGames('p-eric')).toEqual([])
+    expect(await loadGames('p-eric')).toEqual({ yours: [], theirs: [], finished: [] })
   })
 })
 
@@ -332,7 +337,8 @@ describe('describePlayers', () => {
     expect(describePlayers(withBots, 'p-eric')).toBe('@dave and 2 computers')
   })
 
-  it('says when you are each playing two colors', async () => {
+  it('names only the people, leaving the arrangement to describeSetup', async () => {
+    // Two lines on the row, so the two facts are asked for separately.
     const pair = createOnlineGame(
       [
         { playerId: 'p-eric', username: 'eric' },
@@ -340,7 +346,21 @@ describe('describePlayers', () => {
       ],
       'double',
     )
-    expect(describePlayers(pair, 'p-eric')).toBe('@dave · two colors each')
+    expect(describePlayers(pair, 'p-eric')).toBe('@dave')
+    expect(describeSetup(pair, 'p-eric')).toBe('two colors each')
+  })
+
+  it('has nothing to say about an ordinary one-color game', async () => {
+    const four = createOnlineGame(
+      [
+        { playerId: 'p-eric', username: 'eric' },
+        { playerId: 'p-dave', username: 'dave' },
+        { playerId: 'p-sam', username: 'sam' },
+        { playerId: 'p-jo', username: 'jo' },
+      ],
+      'computer',
+    )
+    expect(describeSetup(four, 'p-eric')).toBe('')
   })
 })
 

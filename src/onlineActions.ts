@@ -9,12 +9,12 @@ import type { Account } from './account'
 import {
   colorsOf,
   createOnlineGame,
-  sortForPlayer,
+  groupForPlayer,
   stateOf,
   submitMove,
   summarize,
 } from './online'
-import type { ListEntry, OnlineGame, Participant, SeatFill } from './online'
+import type { GroupedGames, OnlineGame, Participant, SeatFill } from './online'
 import type { Session } from './session'
 
 /**
@@ -158,10 +158,10 @@ export async function startGame(
   return game
 }
 
-/** Your games, the ones waiting on you first. */
-export async function loadGames(playerId: string): Promise<ListEntry[]> {
+/** Your games, split into the piles the list shows. */
+export async function loadGames(playerId: string): Promise<GroupedGames> {
   try {
-    return sortForPlayer(await getBackend().listOnlineGames(playerId), playerId)
+    return groupForPlayer(await getBackend().listOnlineGames(playerId), playerId)
   } catch (error) {
     throw failure(
       error,
@@ -268,7 +268,7 @@ export function recordIfFinished(game: OnlineGame, playerId: string): GameRecord
   return recordFinishedGame(session)
 }
 
-/** A line naming who is in a game, for the list: "you, @dave and the computer". */
+/** Who else is in a game: "@dave", "@dave and @sam", "@dave and 2 computers". */
 export function describePlayers(game: OnlineGame, playerId: string): string {
   const names: string[] = []
   let computers = 0
@@ -288,9 +288,16 @@ export function describePlayers(game: OnlineGame, playerId: string): string {
   if (computers > 0) {
     names.push(computers === 1 ? 'the computer' : `${computers} computers`)
   }
-  // Two colors each is worth saying out loud: it changes how the game plays.
-  const doubled = colorsOf(game, playerId).length > 1 ? ' · two colors each' : ''
-  return `${joinWords(names)}${doubled}`
+  return joinWords(names)
+}
+
+/**
+ * Anything about the arrangement worth knowing at a glance, or empty when there
+ * is nothing unusual. Two colors each earns its place: it changes how the game
+ * plays, and you cannot tell from the board alone whose second color is whose.
+ */
+export function describeSetup(game: OnlineGame, playerId: string): string {
+  return colorsOf(game, playerId).length > 1 ? 'two colors each' : ''
 }
 
 function joinWords(words: string[]): string {

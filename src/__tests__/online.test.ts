@@ -12,7 +12,7 @@ import {
   listEntry,
   opponentsOf,
   SeatingError,
-  sortForPlayer,
+  groupForPlayer,
   stateOf,
   submitMove,
   summarize,
@@ -304,7 +304,7 @@ describe('the games list', () => {
     expect(summarize(finished, 'p-eric').status).toBe('Finished')
   })
 
-  it('puts your turn first, then the most recent, with finished games last', () => {
+  it('splits the games into yours, theirs and finished', () => {
     const waiting = stub({ id: 'waiting', firstColor: 'yellow', updatedAt: '2026-08-09T12:00:00Z' })
     const yoursOld = stub({ id: 'yours-old', firstColor: 'blue', updatedAt: '2026-08-02T12:00:00Z' })
     const yoursNew = stub({ id: 'yours-new', firstColor: 'blue', updatedAt: '2026-08-08T12:00:00Z' })
@@ -314,12 +314,20 @@ describe('the games list', () => {
       updatedAt: '2026-08-10T12:00:00Z',
     }
 
-    const order = sortForPlayer([waiting, yoursOld, done, yoursNew], 'p-eric').map((s) => s.game.id)
+    const groups = groupForPlayer([waiting, yoursOld, done, yoursNew], 'p-eric')
 
-    // Both of eric's turns come first, newest of them ahead; then the game
-    // waiting on somebody else; the finished game sinks below both despite
-    // being the most recently touched.
-    expect(order).toEqual(['yours-new', 'yours-old', 'waiting', 'done'])
+    // Newest first inside each pile, and the finished game stays out of both
+    // live piles despite being the most recently touched.
+    expect(groups.yours.map((e) => e.game.id)).toEqual(['yours-new', 'yours-old'])
+    expect(groups.theirs.map((e) => e.game.id)).toEqual(['waiting'])
+    expect(groups.finished.map((e) => e.game.id)).toEqual(['done'])
+  })
+
+  it('gives empty piles rather than leaving them out', () => {
+    // The screen shows "Your turn" even when nothing is waiting, so the pile has
+    // to exist to be rendered as empty.
+    const groups = groupForPlayer([], 'p-eric')
+    expect(groups).toEqual({ yours: [], theirs: [], finished: [] })
   })
 
   it('takes a list row for a finished game without replaying it', () => {

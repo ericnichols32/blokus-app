@@ -75,8 +75,8 @@ export function HomeScreen({
         </button>
 
         <button type="button" className="btn tall" onClick={onPlayOnline}>
-          <span>Play a friend online</span>
-          <span className="sub">Take turns over days</span>
+          <span>Online games with friends</span>
+          <span className="sub">Start a new game or resume playing</span>
         </button>
 
         {/* Left enabled with nothing recorded: the screen itself explains what
