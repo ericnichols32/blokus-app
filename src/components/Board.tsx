@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import type { CSSProperties } from 'react'
-import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import { usePalette } from '../colors'
 import { paintCell } from '../boardView'
 import type { ViewRotation } from '../boardView'
 import { START_CORNERS } from '../game'
@@ -12,9 +12,9 @@ const START_CORNER_COLOR = new Map<string, Color>(
   (Object.entries(START_CORNERS) as [Color, Point][]).map(([color, [c, r]]) => [`${c},${r}`, color]),
 )
 
-function describeCell(col: number, row: number, occupant: Color | null): string {
+function describeCell(col: number, row: number, occupantName: string | null): string {
   const where = `column ${col + 1}, row ${row + 1}`
-  return occupant ? `${COLOR_LABEL[occupant]} at ${where}` : `Empty, ${where}`
+  return occupantName ? `${occupantName} at ${where}` : `Empty, ${where}`
 }
 
 interface BoardProps {
@@ -55,6 +55,7 @@ export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
   },
   ref,
 ) {
+  const palette = usePalette()
   const previewSet = new Set(previewCells.map(([c, r]) => `${c},${r}`))
   const awaiting = new Set(awaitingFirstMove)
 
@@ -92,23 +93,23 @@ export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
 
           switch (paint.kind) {
             case 'placed':
-              style.background = COLOR_HEX[paint.color]
+              style.background = palette[paint.color].hex
               break
             case 'blocked':
               // Keeps the occupant's colour so you can see what is in the way;
               // Board.css draws the bright ring and wash over the top of it.
               className += ' preview-blocked'
-              style.background = COLOR_HEX[paint.color]
+              style.background = palette[paint.color].hex
               break
             case 'footprint':
               // Valid previews tint with the player's colour; invalid ones use a
               // colour-independent hatch so "illegal" never reads as "the red player".
               className += paint.valid ? ' preview-valid' : ' preview-invalid'
-              if (paint.valid && previewColor) style.background = `${COLOR_HEX[previewColor]}99`
+              if (paint.valid && previewColor) style.background = `${palette[previewColor].hex}99`
               break
             case 'start':
               className += ' start-corner'
-              style.background = `${COLOR_HEX[paint.color]}40`
+              style.background = `${palette[paint.color].hex}40`
               break
           }
 
@@ -118,7 +119,7 @@ export const Board = forwardRef<HTMLDivElement, BoardProps>(function Board(
               className={className}
               style={style}
               role="img"
-              aria-label={describeCell(col, row, occupant)}
+              aria-label={describeCell(col, row, occupant ? palette[occupant].name : null)}
             />
           )
         }),

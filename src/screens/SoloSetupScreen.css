@@ -1,11 +1,11 @@
 /* Layout and headings come from .screen.inner; only the colour picker is local. */
-.colour-row {
+.color-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
-.colour-chip {
+.color-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,7 +19,7 @@
   font-family: inherit;
 }
 
-.colour-chip.selected {
+.color-chip.selected {
   border-color: #f8fafc;
   background: #334155;
 }
@@ -74,4 +74,20 @@
   font-size: 21px;
   font-weight: 700;
   color: #f8fafc;
+}
+
+/* A heading with a control opposite it, right-aligned to the container. */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head h2 {
+  margin-bottom: 0;
+}
+
+.icon-btn.edit-colors {
+  font-size: 16px;
 }

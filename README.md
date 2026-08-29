@@ -86,6 +86,8 @@ src/
   stats.ts       Turns those summaries into the figures on the stats screen
   account.ts     Who you are on this device, and the username rules
   pin.ts         Hashing and checking the four digits, and what that is worth
+  palette.ts     The seven colour sets, and naming a colour picked by hand
+  colors.ts      The palette in use, as a context so a change repaints
   signIn.ts      Claiming, adopting and renaming
   sync.ts        Pushing finished games up to your account
   turnClock.ts   The two budgets a timed turn is made of
@@ -126,6 +128,29 @@ Turns are written in a transaction that refuses the write if the game moved on,
 so two friends playing at once cannot erase each other. The rules file cannot
 enforce turn order or legality — sign-in is anonymous and an account is a typed
 username, so nothing ties a caller to a player. That is enforced on the device.
+
+### Colours
+
+Seven sets of four, edited from the pencil beside **Your color** on either setup
+screen. One of them, *Easy to tell apart*, uses the Okabe–Ito colours so the four
+seats stay distinguishable to the most common forms of colour blindness — which
+classic red and green are not.
+
+You can also paint a single seat any colour at all, through the platform's own
+picker. A hand-painted seat sits on top of whichever set is chosen, which is why
+switching sets may not appear to change all four; the screen says so, and offers
+to undo them.
+
+**None of it touches a game.** The seats are blue, yellow, red and green
+underneath whatever they are drawn in, so a palette can be changed mid-game, and
+two people in the same online game can be looking at entirely different colours
+without disagreeing about anything that matters. It is a setting on the device,
+not a property of the game.
+
+The names travel with the paint. "Blue's turn" is a lie once blue is drawn
+violet, and the seat name is the one thing a player cannot check against the
+board — so each set names its own four, and a colour picked by hand is named
+from its hue.
 
 ### How the stats are worked out
 

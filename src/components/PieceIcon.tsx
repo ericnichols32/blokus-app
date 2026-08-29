@@ -1,4 +1,4 @@
-import { COLOR_HEX } from '../colors'
+import { usePalette } from '../colors'
 import type { Cell, Color } from '../game'
 
 interface PieceIconProps {
@@ -8,6 +8,7 @@ interface PieceIconProps {
 }
 
 export function PieceIcon({ cells, color, cellSize = 10 }: PieceIconProps) {
+  const palette = usePalette()
   const maxCol = Math.max(...cells.map((c) => c[0])) + 1
   const maxRow = Math.max(...cells.map((c) => c[1])) + 1
   const filled = new Set(cells.map(([c, r]) => `${c},${r}`))
@@ -28,7 +29,7 @@ export function PieceIcon({ cells, color, cellSize = 10 }: PieceIconProps) {
             style={{
               width: cellSize,
               height: cellSize,
-              background: filled.has(`${col},${row}`) ? COLOR_HEX[color] : 'transparent',
+              background: filled.has(`${col},${row}`) ? palette[color].hex : 'transparent',
               borderRadius: 2,
             }}
           />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { COLOR_HEX } from '../colors'
+import { usePalette } from '../colors'
 import { COLORS } from '../game'
 import { fillsFor } from '../online'
 import type { SeatFill } from '../online'
@@ -11,6 +11,8 @@ import './OnlineSetupScreen.css'
 interface OnlineSetupScreenProps {
   account: Account
   settings: Settings
+  /** No seat to pass: colours are dealt when the game is made. */
+  onEditColors: () => void
   onStarted: (gameId: string) => void
   onCancel: () => void
 }
@@ -31,9 +33,11 @@ const FILL_BLURB: Record<SeatFill, string> = {
 export function OnlineSetupScreen({
   account,
   settings,
+  onEditColors,
   onStarted,
   onCancel,
 }: OnlineSetupScreenProps) {
+  const palette = usePalette()
   const [friendCount, setFriendCount] = useState(1)
   const [names, setNames] = useState<string[]>(['', '', ''])
   const [fill, setFill] = useState<SeatFill>('double')
@@ -153,10 +157,21 @@ export function OnlineSetupScreen({
       </section>
 
       <section>
-        <h2>Colors</h2>
+        <div className="section-head">
+          <h2>Colors</h2>
+          <button
+            type="button"
+            className="icon-btn edit-colors"
+            onClick={onEditColors}
+            aria-label="Edit colors"
+            title="Edit colors"
+          >
+            ✎
+          </button>
+        </div>
         <div className="color-preview" aria-hidden="true">
           {COLORS.map((c) => (
-            <span key={c} style={{ background: COLOR_HEX[c] }} />
+            <span key={c} style={{ background: palette[c].hex }} />
           ))}
         </div>
         <p className="note">

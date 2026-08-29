@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import { usePalette } from '../colors'
 import { COLORS } from '../game'
 import type { Color } from '../game'
 import { drawFirstColor } from '../session'
@@ -8,6 +8,8 @@ import './SoloSetupScreen.css'
 interface SoloSetupScreenProps {
   /** The configured turn budget, so the label matches the clock you'll get. */
   turnSeconds: number
+  /** Opens the colour editor, carrying the seat currently chosen. */
+  onEditColors: (yourColor: Color) => void
   onStart: (color: Color, timed: boolean, firstColor: Color) => void
   onCancel: () => void
 }
@@ -23,7 +25,13 @@ const SETTLE_MS = 900
  * preference; whether you want a timer is a mood you pick per game, so it stays
  * here where you are already starting one.
  */
-export function SoloSetupScreen({ turnSeconds, onStart, onCancel }: SoloSetupScreenProps) {
+export function SoloSetupScreen({
+  turnSeconds,
+  onEditColors,
+  onStart,
+  onCancel,
+}: SoloSetupScreenProps) {
+  const palette = usePalette()
   // Blue opens in standard Blokus, so it's the friendliest default.
   const [color, setColor] = useState<Color>('blue')
   const [timed, setTimed] = useState(false)
@@ -65,13 +73,13 @@ export function SoloSetupScreen({ turnSeconds, onStart, onCancel }: SoloSetupScr
         <p className="draw-caption">Drawing for who goes first…</p>
         <div
           className={`draw-swatch ${settled ? 'settled' : ''}`}
-          style={{ background: COLOR_HEX[shown] }}
+          style={{ background: palette[shown].hex }}
           aria-hidden="true"
         />
         {/* Only announced once it has landed, so a screen reader isn't read the
             whole shuffle one colour at a time. */}
         <p className="draw-result" aria-live="polite">
-          {settled ? `${COLOR_LABEL[shown]} goes first` : ''}
+          {settled ? `${palette[shown].name} goes first` : ''}
         </p>
       </div>
     )
@@ -87,19 +95,30 @@ export function SoloSetupScreen({ turnSeconds, onStart, onCancel }: SoloSetupScr
       </header>
 
       <section>
-        <h2>Your colour</h2>
-        <div className="colour-row" role="radiogroup" aria-label="Your colour">
+        <div className="section-head">
+          <h2>Your color</h2>
+          <button
+            type="button"
+            className="icon-btn edit-colors"
+            onClick={() => onEditColors(color)}
+            aria-label="Edit colors"
+            title="Edit colors"
+          >
+            ✎
+          </button>
+        </div>
+        <div className="color-row" role="radiogroup" aria-label="Your color">
           {COLORS.map((c) => (
             <button
               key={c}
               type="button"
               role="radio"
               aria-checked={c === color}
-              className={`colour-chip ${c === color ? 'selected' : ''}`}
+              className={`color-chip ${c === color ? 'selected' : ''}`}
               onClick={() => setColor(c)}
             >
-              <span className="swatch" style={{ background: COLOR_HEX[c] }} />
-              <span>{COLOR_LABEL[c]}</span>
+              <span className="swatch" style={{ background: palette[c].hex }} />
+              <span>{palette[c].name}</span>
             </button>
           ))}
         </div>

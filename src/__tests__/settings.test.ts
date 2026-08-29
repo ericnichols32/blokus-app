@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DIFFICULTY_STRENGTH as S, STRONGEST } from '../game'
 import { clampTurnSeconds, DEFAULT_SETTINGS, loadSettings, saveSettings } from '../settings'
 import { MAX_TURN_SECONDS, MIN_TURN_SECONDS } from '../turnClock'
+import { DEFAULT_PALETTE_ID } from '../palette'
 
 // The tests run in node, which has no localStorage. A plain map is enough.
 beforeEach(() => {
@@ -64,5 +65,45 @@ describe('clampTurnSeconds', () => {
     for (const junk of ['', '  ', 'abc', null, undefined, NaN]) {
       expect(clampTurnSeconds(junk)).toBe(DEFAULT_SETTINGS.turnSeconds)
     }
+  })
+})
+
+describe('the colour settings', () => {
+  it('start on the classic palette with nothing painted over it', () => {
+    expect(DEFAULT_SETTINGS.paletteId).toBe(DEFAULT_PALETTE_ID)
+    expect(DEFAULT_SETTINGS.colorOverrides).toEqual({})
+  })
+
+  it('keep a saved palette and hand-painted seats', () => {
+    localStorage.setItem(
+      'blokus:settings',
+      JSON.stringify({ paletteId: 'neon', colorOverrides: { blue: '#7C3AED' } }),
+    )
+
+    const loaded = loadSettings()
+    expect(loaded.paletteId).toBe('neon')
+    // Normalised on the way in, so the rest of the app never sees two spellings
+    // of the same colour.
+    expect(loaded.colorOverrides).toEqual({ blue: '#7c3aed' })
+  })
+
+  it('fall back to the default for a palette that no longer exists', () => {
+    // A palette could be renamed or dropped between versions, and an unpainted
+    // board is worse than the classic one.
+    localStorage.setItem('blokus:settings', JSON.stringify({ paletteId: 'retired-palette' }))
+    expect(loadSettings().paletteId).toBe(DEFAULT_PALETTE_ID)
+  })
+
+  it('drop overrides that are not seats or not colours', () => {
+    localStorage.setItem(
+      'blokus:settings',
+      JSON.stringify({ colorOverrides: { blue: 'banana', purple: '#ffffff', red: '#abc' } }),
+    )
+    expect(loadSettings().colorOverrides).toEqual({ red: '#aabbcc' })
+  })
+
+  it('survive overrides stored as something that is not an object', () => {
+    localStorage.setItem('blokus:settings', JSON.stringify({ colorOverrides: ['#fff'] }))
+    expect(loadSettings().colorOverrides).toEqual({})
   })
 })

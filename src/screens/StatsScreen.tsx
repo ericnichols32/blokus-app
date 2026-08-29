@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import { usePalette } from '../colors'
 import { PieceIcon } from '../components/PieceIcon'
 import { PIECE_BY_ID, strengthLabel } from '../game'
 import type { Color, PieceId } from '../game'
@@ -46,6 +46,7 @@ function percent(part: number, whole: number): string {
 }
 
 export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScreenProps) {
+  const palette = usePalette()
   const stats = useMemo(() => computeStats(history), [history])
   // The pieces are drawn in whatever colour you play most, so the screen looks
   // like your games rather than like a default.
@@ -135,8 +136,8 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             <ul className="color-list">
               {stats.colors.map((tally) => (
                 <li key={tally.color}>
-                  <span className="dot" style={{ background: COLOR_HEX[tally.color] }} />
-                  <span className="color-name">{COLOR_LABEL[tally.color]}</span>
+                  <span className="dot" style={{ background: palette[tally.color].hex }} />
+                  <span className="color-name">{palette[tally.color].name}</span>
                   <span className="color-count">
                     {tally.won} of {tally.played} won
                   </span>
@@ -145,7 +146,7 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
                       className="bar-fill"
                       style={{
                         width: percent(tally.won, tally.played),
-                        background: COLOR_HEX[tally.color],
+                        background: palette[tally.color].hex,
                       }}
                     />
                   </span>
@@ -154,7 +155,7 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             </ul>
             {stats.favoriteColor && stats.colors.length > 1 && (
               <p className="note">
-                You play {COLOR_LABEL[stats.favoriteColor].toLowerCase()} more than any other color.
+                You play {palette[stats.favoriteColor].name.toLowerCase()} more than any other color.
               </p>
             )}
           </section>
@@ -267,9 +268,10 @@ function PieceCard({ heading, tally, color, detail }: PieceCardProps) {
 }
 
 function RecentRow({ game }: { game: RecentGame }) {
+  const palette = usePalette()
   return (
     <li>
-      <span className="dot" style={{ background: COLOR_HEX[game.color] }} />
+      <span className="dot" style={{ background: palette[game.color].hex }} />
       <span className="recent-main">
         <span className={`outcome ${game.outcome}`}>{OUTCOME_LABEL[game.outcome]}</span>
         <span className="recent-sub">

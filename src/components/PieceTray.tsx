@@ -1,4 +1,4 @@
-import { COLOR_HEX } from '../colors'
+import { usePalette } from '../colors'
 import { PIECE_BY_ID, rotateCells } from '../game'
 import type { Color, PieceId } from '../game'
 import type { ViewRotation } from '../boardView'
@@ -33,8 +33,9 @@ export function PieceTray({
   onDragMove,
   onDragEnd,
 }: PieceTrayProps) {
+  const palette = usePalette()
   return (
-    <div className="piece-tray" style={{ borderColor: COLOR_HEX[color] }}>
+    <div className="piece-tray" style={{ borderColor: palette[color].hex }}>
       {pieceIds.map((id) => {
         const selected = id === selectedPieceId
         let className = 'piece-tray-item'

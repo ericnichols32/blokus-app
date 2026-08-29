@@ -19,6 +19,7 @@ export type Screen =
   | 'online'
   | 'online-setup'
   | 'online-game'
+  | 'colors'
 
 const SCREEN_KEY = 'blokus:screen'
 const OPEN_GAME_KEY = 'blokus:online-game'

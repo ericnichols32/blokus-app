@@ -3,7 +3,7 @@ import { Board } from '../components/Board'
 import { PieceIcon } from '../components/PieceIcon'
 import { PieceTray } from '../components/PieceTray'
 import { ScoreStrip } from '../components/ScoreStrip'
-import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import { usePalette } from '../colors'
 import {
   BOARD_SIZE,
   applyMove,
@@ -116,6 +116,7 @@ export function GameScreen({
   online,
 }: GameScreenProps) {
   const gameState = session.state
+  const palette = usePalette()
   const [selectedPieceId, setSelectedPieceId] = useState<PieceId | null>(null)
   const [rotationSteps, setRotationSteps] = useState(0)
   const [flipped, setFlipped] = useState(false)
@@ -460,9 +461,9 @@ export function GameScreen({
             const rank = ranked.findIndex((c) => scores[c].score === scores[color].score) + 1
             const seat = session.seats[color]
             return (
-              <li key={color} style={{ borderColor: COLOR_HEX[color] }}>
+              <li key={color} style={{ borderColor: palette[color].hex }}>
                 <span className="rank">#{rank}</span>
-                <span className="dot" style={{ background: COLOR_HEX[color] }} />
+                <span className="dot" style={{ background: palette[color].hex }} />
                 <span className="who">
                   {seat.kind === 'computer'
                     ? 'Computer'
@@ -470,7 +471,7 @@ export function GameScreen({
                       ? color === session.youAre
                         ? 'You'
                         : `@${seat.username ?? 'player'}`
-                      : COLOR_LABEL[color]}
+                      : palette[color].name}
                   {seat.kind === 'computer' && <span className="tag">CPU</span>}
                 </span>
                 <span className="score">{scores[color].score}</span>
@@ -519,7 +520,7 @@ export function GameScreen({
         <button type="button" className="icon-btn" onClick={onExit} aria-label="Back to menu">
           ‹
         </button>
-        <span className="dot" style={{ background: COLOR_HEX[currentPlayer.color] }} />
+        <span className="dot" style={{ background: palette[currentPlayer.color].hex }} />
         {/* Online, a color name doesn't say whose move it is — there are three
             other people, and which color each holds is not what you remember
             about them. So the status names the person instead. */}
@@ -528,7 +529,7 @@ export function GameScreen({
             online.status
           ) : (
             <>
-              {COLOR_LABEL[currentPlayer.color]}
+              {palette[currentPlayer.color].name}
               {isComputerTurn ? ' is thinking…' : "'s turn"}
             </>
           )}

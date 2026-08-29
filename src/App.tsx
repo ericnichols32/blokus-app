@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AccountScreen } from './screens/AccountScreen'
 import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
@@ -7,6 +7,9 @@ import { SoloSetupScreen } from './screens/SoloSetupScreen'
 import { StatsScreen } from './screens/StatsScreen'
 import { OnlineGamesScreen } from './screens/OnlineGamesScreen'
 import { OnlineSetupScreen } from './screens/OnlineSetupScreen'
+import { ColorsScreen } from './screens/ColorsScreen'
+import { PaletteProvider } from './colors'
+import { resolvePalette } from './palette'
 import {
   clearSession,
   createSolo,
@@ -66,14 +69,18 @@ function initialScreen(): Screen {
   return !loadAccount() && !hasBeenPrompted() ? 'account' : 'home'
 }
 
-function App() {
+interface ScreensProps {
+  settings: Settings
+  setSettings: (settings: Settings) => void
+}
+
+function Screens({ settings, setSettings }: ScreensProps) {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [screen, setScreen] = useState<Screen>(initialScreen)
   // The games themselves rather than a count of them, since the stats screen
   // reads every one. Held here so a game finishing updates the stats behind you
   // without a reload.
   const [history, setHistory] = useState<GameRecord[]>(loadHistory)
-  const [settings, setSettings] = useState<Settings>(loadSettings)
   const [account, setAccount] = useState<Account | null>(loadAccount)
 
   useEffect(() => {
@@ -115,6 +122,10 @@ function App() {
    * The online game currently open, held here rather than in the board so a turn
    * can be written and the board rebuilt from what the store accepted.
    */
+  /** Where the colour editor was opened from, and for which seat. */
+  const [colorsFrom, setColorsFrom] = useState<Screen>('solo-setup')
+  const [editingColor, setEditingColor] = useState<Color | undefined>(undefined)
+
   const [onlineGame, setOnlineGame] = useState<OnlineGame | null>(null)
   const [onlineBusy, setOnlineBusy] = useState(false)
   const [onlineError, setOnlineError] = useState<string | null>(null)
@@ -256,10 +267,26 @@ function App() {
     )
   }
 
+  if (screen === 'colors') {
+    return (
+      <ColorsScreen
+        settings={settings}
+        onChange={setSettings}
+        yourColor={editingColor}
+        onClose={() => setScreen(colorsFrom)}
+      />
+    )
+  }
+
   if (screen === 'solo-setup') {
     return (
       <SoloSetupScreen
         turnSeconds={settings.turnSeconds}
+        onEditColors={(yourColor) => {
+          setEditingColor(yourColor)
+          setColorsFrom('solo-setup')
+          setScreen('colors')
+        }}
         onStart={startSolo}
         onCancel={() => setScreen('home')}
       />
@@ -283,6 +310,13 @@ function App() {
       <OnlineSetupScreen
         account={account}
         settings={settings}
+        onEditColors={() => {
+          // No seat yet: the colours are dealt when the game is made, so only
+          // the whole-set half of that screen has anything to act on.
+          setEditingColor(undefined)
+          setColorsFrom('online-setup')
+          setScreen('colors')
+        }}
         onStarted={(id) => void openOnlineGame(id)}
         onCancel={() => setScreen('online')}
       />
@@ -365,6 +399,24 @@ function App() {
       onSettings={() => setScreen('settings')}
       onAccount={() => setScreen('account')}
     />
+  )
+}
+
+/**
+ * The palette wraps every screen, so changing it in the colour editor repaints
+ * the board behind it rather than waiting for a reload.
+ */
+function App() {
+  const [settings, setSettings] = useState<Settings>(loadSettings)
+  const palette = useMemo(
+    () => resolvePalette(settings.paletteId, settings.colorOverrides),
+    [settings.paletteId, settings.colorOverrides],
+  )
+
+  return (
+    <PaletteProvider value={palette}>
+      <Screens settings={settings} setSettings={setSettings} />
+    </PaletteProvider>
   )
 }
 

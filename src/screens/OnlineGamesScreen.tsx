@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { COLOR_HEX } from '../colors'
+import { usePalette } from '../colors'
 import { isOnline } from '../backend'
 import { loadGames, describePlayers, describeSetup, yourColorIn } from '../onlineActions'
 import { opponentsOf } from '../online'
@@ -195,6 +195,7 @@ interface PileProps {
 }
 
 function Pile({ heading, entries, playerId, onOpenGame, emptyNote, accent, showStatus }: PileProps) {
+  const palette = usePalette()
   if (entries.length === 0 && !emptyNote) return null
 
   return (
@@ -211,7 +212,7 @@ function Pile({ heading, entries, playerId, onOpenGame, emptyNote, accent, showS
                 <button type="button" onClick={() => onOpenGame(entry.game.id)}>
                   <span
                     className="dot"
-                    style={{ background: yours ? COLOR_HEX[yours] : '#475569' }}
+                    style={{ background: yours ? palette[yours].hex : '#475569' }}
                     aria-hidden="true"
                   />
                   <span className="game-main">

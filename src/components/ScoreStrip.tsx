@@ -1,4 +1,4 @@
-import { COLOR_HEX, COLOR_LABEL } from '../colors'
+import { usePalette } from '../colors'
 import { computeScore } from '../game'
 import type { Session } from '../session'
 import './ScoreStrip.css'
@@ -8,6 +8,7 @@ interface ScoreStripProps {
 }
 
 export function ScoreStrip({ session }: ScoreStripProps) {
+  const palette = usePalette()
   const state = session.state
 
   return (
@@ -30,11 +31,11 @@ export function ScoreStrip({ session }: ScoreStripProps) {
           <li
             key={player.color}
             className={className}
-            aria-label={`${COLOR_LABEL[player.color]}${isYou ? ', you' : ''}, ${left} squares left${
+            aria-label={`${palette[player.color].name}${isYou ? ', you' : ''}, ${left} squares left${
               player.passedOut ? ', out of the game' : ''
             }`}
           >
-            <span className="dot" style={{ background: COLOR_HEX[player.color] }} />
+            <span className="dot" style={{ background: palette[player.color].hex }} />
             <span className="count">{left}</span>
             {isYou && <span className="you">you</span>}
           </li>
