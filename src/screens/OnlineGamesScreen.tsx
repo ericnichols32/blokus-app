@@ -78,7 +78,7 @@ export function OnlineGamesScreen({
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Back">
             ‹
           </button>
-          <h1>Play a friend</h1>
+          <h1>Online games</h1>
         </header>
         <section className="empty">
           <p className="empty-title">Pick a name first</p>
