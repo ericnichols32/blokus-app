@@ -84,6 +84,7 @@ src/
   onlineActions.ts  What the screens do with one — invites, turns, errors
   history.ts     Finished games, summarised as they end
   stats.ts       Turns those summaries into the figures on the stats screen
+  boardZoom.ts   How far the board is pinched, and what keeps it reachable
   account.ts     Who you are on this device, and the username rules
   pin.ts         Hashing and checking the four digits, and what that is worth
   palette.ts     The seven colour sets, and naming a colour picked by hand
@@ -128,6 +129,21 @@ Turns are written in a transaction that refuses the write if the game moved on,
 so two friends playing at once cannot erase each other. The rules file cannot
 enforce turn order or legality — sign-in is anonymous and an account is a typed
 username, so nothing ties a caller to a player. That is enforced on the device.
+
+### Per-friend records
+
+Every person you have finished a game with gets a row on the stats screen and a
+page of their own: the head-to-head record, both average scores, and every game
+you have played together.
+
+Head to head means **who finished above whom**, not who won the game. In a
+four-player game those are different questions, and the first is the one people
+argue about afterwards — you can beat somebody comfortably in a game neither of
+you won, and the page says so where it happened.
+
+This can only count games whose record says who held each seat, which is online
+games finished after that was stored. Anything earlier is counted and admitted
+to on the screen rather than quietly left out, so a thin record has a reason.
 
 ### Colours
 

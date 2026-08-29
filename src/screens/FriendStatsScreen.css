@@ -1,0 +1,185 @@
+.friend {
+  gap: 26px;
+}
+
+.friend .note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.head-to-head {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+/* Whoever is ahead, so the shape of the record reads before the numbers do. */
+.figure.accent {
+  border-color: #1d4ed8;
+  background: #111f3d;
+}
+
+.figure-value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure-label {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.score-compare {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.score-compare li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 11px 4px;
+  font-size: 15px;
+  border-top: 1px solid #131c2e;
+}
+
+.score-compare li:first-child {
+  border-top: none;
+}
+
+.score-compare strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+}
+
+.meeting-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meeting-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 4px;
+  border-top: 1px solid #131c2e;
+}
+
+.meeting-list li:first-child {
+  border-top: none;
+}
+
+/* Your colour then theirs, so a glance says who was who that game. */
+.dots {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.meeting-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.meeting-outcome {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.meeting-outcome.win {
+  color: #4ade80;
+}
+
+.meeting-outcome.draw {
+  color: #fbbf24;
+}
+
+.meeting-outcome.loss {
+  color: #cbd5e1;
+}
+
+.meeting-sub {
+  font-size: 12px;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.meeting-when {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* The rows on the stats screen that open all this. */
+.friend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friend-list button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: inherit;
+  text-align: left;
+}
+
+.friend-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.friend-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.friend-sub {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.friend-record {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+}

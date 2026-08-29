@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { COLORS, DIFFICULTY_STRENGTH as S, PIECE_DEFINITIONS } from '../game'
 import type { Color, PieceId } from '../game'
 import type { GameRecord, GameRecordPlayer } from '../history'
-import { computeStats, MIN_GAMES_FOR_FAVORITES, outcomeFor } from '../stats'
+import { computeFriends, computeStats, MIN_GAMES_FOR_FAVORITES, outcomeFor } from '../stats'
 
 const ALL_PIECE_IDS = PIECE_DEFINITIONS.map((p) => p.id)
 
@@ -351,5 +351,140 @@ describe('outcomeFor', () => {
 
     expect(outcomeFor(record, you)).toBe('draw')
     expect(outcomeFor(record, loser)).toBe('loss')
+  })
+})
+
+describe('per-friend records', () => {
+  /** An online game, with who held each seat recorded. */
+  function online(options: {
+    id?: string
+    finishedAt?: string
+    /** playerId → rank. Yours is 'me'. */
+    ranks: Record<string, number>
+    scores?: Record<string, number>
+  }): GameRecord {
+    const ids = Object.keys(options.ranks)
+    const players: GameRecordPlayer[] = ids.map((id, i) => ({
+      color: COLORS[i],
+      seat: 'human',
+      score: options.scores?.[id] ?? -options.ranks[id],
+      remainingSquares: 0,
+      piecesLeft: [],
+      perfectGame: false,
+      rank: options.ranks[id],
+      playerId: id,
+      username: id,
+    }))
+    return {
+      id: options.id ?? Math.random().toString(36).slice(2),
+      finishedAt: options.finishedAt ?? '2026-08-01T12:00:00.000Z',
+      mode: 'online',
+      strength: null,
+      timed: false,
+      yourColor: players.find((p) => p.playerId === 'me')!.color,
+      movesPlayed: 60,
+      players,
+    }
+  }
+
+  it('counts finishing above them, which is not the same as winning', () => {
+    // Second of four, but ahead of dave: a loss overall and a win against him.
+    const stats = computeFriends([online({ ranks: { winner: 1, me: 2, dave: 3 } })], 'me')
+
+    const dave = stats.friends.find((f) => f.username === 'dave')!
+    expect(dave.wins).toBe(1)
+    expect(dave.losses).toBe(0)
+    expect(dave.meetings[0].outcome).toBe('win')
+    // And the game itself was not yours.
+    expect(dave.meetings[0].wonOverall).toBe(false)
+  })
+
+  it('counts finishing level as a draw between you', () => {
+    const stats = computeFriends([online({ ranks: { me: 1, dave: 1 } })], 'me')
+    expect(stats.friends[0]).toMatchObject({ wins: 0, draws: 1, losses: 0 })
+  })
+
+  it('builds a record over several games', () => {
+    const stats = computeFriends(
+      [
+        online({ id: 'a', ranks: { me: 1, dave: 2 } }),
+        online({ id: 'b', ranks: { me: 3, dave: 1 } }),
+        online({ id: 'c', ranks: { me: 2, dave: 2 } }),
+      ],
+      'me',
+    )
+
+    expect(stats.friends[0]).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1 })
+  })
+
+  it('keeps each friend apart in a game with several', () => {
+    const stats = computeFriends([online({ ranks: { me: 2, dave: 1, sam: 3 } })], 'me')
+
+    expect(stats.friends.find((f) => f.username === 'dave')!.losses).toBe(1)
+    expect(stats.friends.find((f) => f.username === 'sam')!.wins).toBe(1)
+  })
+
+  it('averages both scores, so the record has a size as well as a shape', () => {
+    const stats = computeFriends(
+      [
+        online({ ranks: { me: 1, dave: 2 }, scores: { me: -4, dave: -20 } }),
+        online({ ranks: { me: 1, dave: 2 }, scores: { me: -10, dave: -30 } }),
+      ],
+      'me',
+    )
+
+    expect(stats.friends[0].yourAverageScore).toBe(-7)
+    expect(stats.friends[0].theirAverageScore).toBe(-25)
+  })
+
+  it('puts whoever you played most recently first', () => {
+    const stats = computeFriends(
+      [
+        online({ ranks: { me: 1, dave: 2 }, finishedAt: '2026-08-01T00:00:00.000Z' }),
+        online({ ranks: { me: 1, sam: 2 }, finishedAt: '2026-08-09T00:00:00.000Z' }),
+      ],
+      'me',
+    )
+
+    expect(stats.friends.map((f) => f.username)).toEqual(['sam', 'dave'])
+  })
+
+  it('never counts you as your own opponent', () => {
+    const stats = computeFriends([online({ ranks: { me: 1, dave: 2 } })], 'me')
+    expect(stats.friends.map((f) => f.playerId)).toEqual(['dave'])
+  })
+
+  it('ignores computer seats', () => {
+    const record = online({ ranks: { me: 1, dave: 2 } })
+    record.players.push({
+      color: 'green',
+      seat: 'computer',
+      score: -30,
+      remainingSquares: 30,
+      piecesLeft: [],
+      perfectGame: false,
+      rank: 3,
+    })
+
+    expect(computeFriends([record], 'me').friends).toHaveLength(1)
+  })
+
+  it('owns up to online games that recorded no names', () => {
+    // Everything played before seats carried names. Counted rather than quietly
+    // left out, so a thin record is explained instead of just looking wrong.
+    const older = online({ ranks: { me: 1, dave: 2 } })
+    for (const p of older.players) {
+      delete p.playerId
+      delete p.username
+    }
+
+    const stats = computeFriends([older, online({ ranks: { me: 1, sam: 2 } })], 'me')
+    expect(stats.unattributedGames).toBe(1)
+    expect(stats.friends.map((f) => f.username)).toEqual(['sam'])
+  })
+
+  it('does not count a solo game as unattributed', () => {
+    // A solo game has no friend in it to miss.
+    expect(computeFriends([game({})], 'me').unattributedGames).toBe(0)
   })
 })

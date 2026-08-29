@@ -309,3 +309,123 @@ function bestBy(
 function pieceSize(id: PieceId): number {
   return PIECE_BY_ID[id].cells.length
 }
+
+/**
+ * Your record against one person, across every game you have both been in.
+ *
+ * "Beat them" means finishing above them, not winning the game — in a
+ * four-player game those are different questions, and the one you actually
+ * argue about afterwards is the first.
+ */
+export interface FriendStats {
+  playerId: string
+  /** The most recent name they were recorded under. */
+  username: string
+  games: number
+  /** Games you finished above them. */
+  wins: number
+  /** Games you finished level with them. */
+  draws: number
+  losses: number
+  yourAverageScore: number
+  theirAverageScore: number
+  /** Newest first. */
+  meetings: FriendMeeting[]
+}
+
+export interface FriendMeeting {
+  id: string
+  finishedAt: string
+  /** How you did against them, not how the game went overall. */
+  outcome: Outcome
+  yourScore: number
+  theirScore: number
+  yourColor: Color
+  theirColor: Color
+  /** Whether the game as a whole was yours — a different question. */
+  wonOverall: boolean
+}
+
+/**
+ * Everyone you have played, most recently met first.
+ *
+ * Only games that recorded who held each seat can be counted, which means
+ * online games finished after that was stored. `unattributedGames` is how many
+ * are known to be missing, so the screen can say so rather than quietly
+ * under-counting somebody's record.
+ */
+export interface FriendsSummary {
+  friends: FriendStats[]
+  unattributedGames: number
+}
+
+export function computeFriends(history: GameRecord[], playerId: string): FriendsSummary {
+  const byPlayer = new Map<string, FriendStats>()
+  let unattributed = 0
+
+  for (const record of newestFirst(history)) {
+    const you = record.players.find((p) => p.playerId === playerId)
+    if (!you) {
+      // An online game from before seats carried names. Counted so the screen
+      // can admit to it; solo games are not missing anything.
+      if (record.mode === 'online') unattributed++
+      continue
+    }
+
+    for (const them of record.players) {
+      if (them.seat !== 'human' || !them.playerId || them.playerId === playerId) continue
+
+      const friend =
+        byPlayer.get(them.playerId) ??
+        ({
+          playerId: them.playerId,
+          username: them.username ?? 'someone',
+          games: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          yourAverageScore: 0,
+          theirAverageScore: 0,
+          meetings: [],
+        } satisfies FriendStats)
+
+      // Head to head: who finished above whom.
+      const outcome: Outcome =
+        you.rank === them.rank ? 'draw' : you.rank < them.rank ? 'win' : 'loss'
+
+      friend.games++
+      if (outcome === 'win') friend.wins++
+      else if (outcome === 'draw') friend.draws++
+      else friend.losses++
+
+      friend.yourAverageScore += you.score
+      friend.theirAverageScore += them.score
+      friend.meetings.push({
+        id: record.id,
+        finishedAt: record.finishedAt,
+        outcome,
+        yourScore: you.score,
+        theirScore: them.score,
+        yourColor: you.color,
+        theirColor: them.color,
+        wonOverall: you.rank === 1 && record.players.filter((p) => p.rank === 1).length === 1,
+      })
+
+      byPlayer.set(them.playerId, friend)
+    }
+  }
+
+  const friends = [...byPlayer.values()].map((friend) => ({
+    ...friend,
+    yourAverageScore: friend.yourAverageScore / friend.games,
+    theirAverageScore: friend.theirAverageScore / friend.games,
+  }))
+
+  // Most recently played first: who you are in the middle of a run with is more
+  // use than who you have played most since the beginning of time.
+  friends.sort((a, b) =>
+    (b.meetings[0]?.finishedAt ?? '').localeCompare(a.meetings[0]?.finishedAt ?? ''),
+  )
+
+  return { friends, unattributedGames: unattributed }
+}

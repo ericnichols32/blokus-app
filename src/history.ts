@@ -44,6 +44,14 @@ export interface GameRecordPlayer {
   perfectGame: boolean
   /** Shared by players on equal scores, so two firsts means a draw at the top. */
   rank: number
+  /**
+   * Who held this seat, for an online game. Absent on a computer, on a solo
+   * game, and on every record written before this was stored — which is why
+   * per-friend stats can only count games played from that point on. The name is
+   * kept beside the id so a record still says who played it after a rename.
+   */
+  playerId?: string
+  username?: string
 }
 
 const HISTORY_KEY = 'blokus:history:v1'
@@ -106,15 +114,20 @@ export function summarise(session: Session, finishedAt = new Date()): GameRecord
     movesPlayed: session.state.placedPieces.length,
     players: session.state.players.map((player) => {
       const result = scores[player.color]
+      const seat = session.seats[player.color]
       return {
         color: player.color,
-        seat: session.seats[player.color].kind,
+        seat: seat.kind,
         score: result.score,
         remainingSquares: result.remainingSquares,
         piecesLeft: [...player.remainingPieceIds],
         perfectGame: result.perfectGame,
         // Equal scores share a rank, matching the game-over screen.
         rank: ordered.findIndex((p) => scores[p.color].score === result.score) + 1,
+        // Only present online. Undefined keys are dropped on the way to the
+        // store, which will not accept them.
+        ...(seat.playerId ? { playerId: seat.playerId } : {}),
+        ...(seat.username ? { username: seat.username } : {}),
       }
     }),
   }

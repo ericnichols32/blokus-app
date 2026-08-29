@@ -4,7 +4,8 @@ import { PieceIcon } from '../components/PieceIcon'
 import { PIECE_BY_ID, strengthLabel } from '../game'
 import type { Color, PieceId } from '../game'
 import type { GameRecord } from '../history'
-import { computeStats, MIN_GAMES_FOR_FAVORITES } from '../stats'
+import { computeFriends, computeStats, MIN_GAMES_FOR_FAVORITES } from '../stats'
+import { FriendRow } from './FriendStatsScreen'
 import type { Outcome, PieceTally, RecentGame } from '../stats'
 import type { Account } from '../account'
 import './StatsScreen.css'
@@ -15,6 +16,7 @@ interface StatsScreenProps {
   account: Account | null
   onClose: () => void
   onPlaySolo: () => void
+  onOpenFriend: (friendId: string) => void
 }
 
 const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -45,9 +47,20 @@ function percent(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`
 }
 
-export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScreenProps) {
+export function StatsScreen({
+  history,
+  account,
+  onClose,
+  onPlaySolo,
+  onOpenFriend,
+}: StatsScreenProps) {
   const palette = usePalette()
   const stats = useMemo(() => computeStats(history), [history])
+  // Only meaningful for somebody with a name — the records are keyed by it.
+  const friends = useMemo(
+    () => (account ? computeFriends(history, account.playerId) : null),
+    [history, account],
+  )
   // The pieces are drawn in whatever colour you play most, so the screen looks
   // like your games rather than like a default.
   const inkColor: Color = stats.favoriteColor ?? 'blue'
@@ -199,16 +212,49 @@ export function StatsScreen({ history, account, onClose, onPlaySolo }: StatsScre
             </ul>
           </section>
 
-          <section>
-            <h2>Still to come</h2>
-            <p className="note">
-              Per-friend records — who you beat and who beats you — arrive with online play.
-              {stats.sharedGames > 0 &&
-                ` ${stats.sharedGames} older ${
-                  stats.sharedGames === 1 ? 'game is' : 'games are'
-                } saved from when four people could share one phone; nothing in those records says which player was you, so they stay out of the figures above.`}
-            </p>
-          </section>
+          {friends && (friends.friends.length > 0 || friends.unattributedGames > 0) && (
+            <section>
+              <h2>Friends</h2>
+              <ul className="friend-list">
+                {friends.friends.map((friend) => (
+                  <FriendRow
+                    key={friend.playerId}
+                    friend={friend}
+                    onOpen={() => onOpenFriend(friend.playerId)}
+                  />
+                ))}
+              </ul>
+              {friends.friends.length > 0 && (
+                <p className="note">
+                  Won, level, lost — against each of them, counting who finished above whom rather
+                  than who won the game.
+                </p>
+              )}
+              {friends.unattributedGames > 0 && (
+                /* A thin record deserves its reason, rather than looking wrong. */
+                <p className="note">
+                  {friends.unattributedGames === 1
+                    ? 'One earlier online game is'
+                    : `${friends.unattributedGames} earlier online games are`}{' '}
+                  missing from this: games only started recording who held each seat recently, so
+                  anything before that can't be attributed to anyone.
+                </p>
+              )}
+            </section>
+          )}
+
+          {stats.sharedGames > 0 && (
+            <section>
+              <h2>Not counted</h2>
+              <p className="note">
+                {stats.sharedGames === 1
+                  ? 'One older game is'
+                  : `${stats.sharedGames} older games are`}{' '}
+                saved from when four people could share one phone. Nothing in those records says
+                which player was you, so they stay out of the figures above.
+              </p>
+            </section>
+          )}
         </>
       )}
     </div>

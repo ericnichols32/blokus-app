@@ -8,6 +8,7 @@ import { StatsScreen } from './screens/StatsScreen'
 import { OnlineGamesScreen } from './screens/OnlineGamesScreen'
 import { OnlineSetupScreen } from './screens/OnlineSetupScreen'
 import { ColorsScreen } from './screens/ColorsScreen'
+import { FriendStatsScreen } from './screens/FriendStatsScreen'
 import { PaletteProvider } from './colors'
 import { resolvePalette } from './palette'
 import {
@@ -124,6 +125,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
    * can be written and the board rebuilt from what the store accepted.
    */
   /** Where the colour editor was opened from, and for which seat. */
+  const [openFriendId, setOpenFriendId] = useState<string | null>(null)
   const [colorsFrom, setColorsFrom] = useState<Screen>('solo-setup')
   const [editingColor, setEditingColor] = useState<Color | undefined>(undefined)
 
@@ -389,6 +391,17 @@ function Screens({ settings, setSettings }: ScreensProps) {
     )
   }
 
+  if (screen === 'friend' && account && openFriendId) {
+    return (
+      <FriendStatsScreen
+        history={history}
+        playerId={account.playerId}
+        friendId={openFriendId}
+        onClose={() => setScreen('stats')}
+      />
+    )
+  }
+
   if (screen === 'stats') {
     return (
       <StatsScreen
@@ -396,6 +409,10 @@ function Screens({ settings, setSettings }: ScreensProps) {
         account={account}
         onClose={() => setScreen('home')}
         onPlaySolo={() => setScreen('solo-setup')}
+        onOpenFriend={(friendId) => {
+          setOpenFriendId(friendId)
+          setScreen('friend')
+        }}
       />
     )
   }
