@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AccountScreen } from './screens/AccountScreen'
 import { GameScreen } from './screens/GameScreen'
 import { HomeScreen } from './screens/HomeScreen'
@@ -32,52 +32,37 @@ import {
   takeTurn,
 } from './onlineActions'
 import type { OnlineGame } from './online'
+import {
+  rememberOpenGame,
+  rememberScreen,
+  restoredOpenGame,
+  restoredScreen,
+} from './screenMemory'
+import type { Screen } from './screenMemory'
 import type { Color, GameState, PieceId, Point } from './game'
 import './App.css'
 
-type Screen =
-  | 'home'
-  | 'solo-setup'
-  | 'settings'
-  | 'stats'
-  | 'account'
-  | 'game'
-  | 'online'
-  | 'online-setup'
-  | 'online-game'
-
 /**
- * Which screen you were on, remembered across reloads. The service worker is
- * registered with autoUpdate, so shipping a new version reloads the page under
- * whoever is mid-game — without this they'd land back on the menu.
- */
-const SCREEN_KEY = 'blokus:screen'
-
-function loadScreen(): Screen {
-  try {
-    const saved = sessionStorage.getItem(SCREEN_KEY)
-    // 'online-game' is deliberately absent: it needs a loaded game, and a reload
-    // would land on the board with nothing on it. The list is the right landing.
-    return saved === 'game' ||
-      saved === 'solo-setup' ||
-      saved === 'settings' ||
-      saved === 'stats' ||
-      saved === 'online'
-      ? saved
-      : 'home'
-  } catch {
-    return 'home'
-  }
-}
-
-/**
- * Where a fresh load lands. A game in progress wins — being dropped into the
- * name prompt mid-game would be worse than asking later — and otherwise a
- * player who has never been asked for a name gets asked now, once.
+ * Where a fresh load lands.
+ *
+ * The app reloads itself to take an update (appUpdate.ts), so this runs under
+ * people who did not ask for a reload and were in the middle of something.
+ *
+ * An online screen restores on its own: the game lives on the server, so unlike
+ * a solo game there is nothing local to check for — and refusing to restore it
+ * would drop somebody mid-game onto the main menu. A remembered game id gets
+ * them all the way back to the board; without one, the games list is as close as
+ * it can get.
  */
 function initialScreen(): Screen {
-  const session = loadSession()
-  if (session) return loadScreen()
+  const saved = restoredScreen()
+
+  if (saved === 'online') return 'online'
+  if (saved === 'online-game') return restoredOpenGame() ? 'online-game' : 'online'
+
+  // A game in progress wins over the name prompt — being dropped into it
+  // mid-game would be worse than asking later.
+  if (loadSession()) return saved ?? 'home'
   return !loadAccount() && !hasBeenPrompted() ? 'account' : 'home'
 }
 
@@ -110,11 +95,10 @@ function App() {
   }, [session])
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem(SCREEN_KEY, screen)
-    } catch {
-      // Storage unavailable; the screen just won't survive a reload.
-    }
+    rememberScreen(screen)
+    // Leaving the board forgets which game it was, so a later reload restores
+    // the list rather than reopening something already walked away from.
+    if (screen !== 'online-game') rememberOpenGame(null)
   }, [screen])
 
   // Push finished games up to whoever is signed in — on sign-in, which carries
@@ -154,6 +138,7 @@ function App() {
       setOnlineError(null)
       setOnlineBusy(true)
       setScreen('online-game')
+      rememberOpenGame(gameId)
       try {
         const game = await refreshGame(gameId)
         setOnlineGame(game)
@@ -190,6 +175,20 @@ function App() {
     },
     [onlineGame, account, bankOnlineGame],
   )
+
+  /*
+   * Reopen the game a reload landed back on. Runs once: initialScreen only
+   * chooses 'online-game' when an id was remembered, and a ref rather than a
+   * dependency keeps StrictMode's double-invoke from fetching it twice.
+   */
+  const reopened = useRef(false)
+  useEffect(() => {
+    if (reopened.current || screen !== 'online-game' || onlineGame) return
+    const gameId = restoredOpenGame()
+    if (!gameId) return
+    reopened.current = true
+    void openOnlineGame(gameId)
+  }, [screen, onlineGame, openOnlineGame])
 
   function startSolo(color: Color, timed: boolean, firstColor: Color) {
     setSession(createSolo(color, settings.strength, timed, firstColor))
