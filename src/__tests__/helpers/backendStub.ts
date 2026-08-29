@@ -20,6 +20,7 @@ export function stubBackend(over: Partial<Backend> = {}): Backend {
     getOnlineGame: () => Promise.resolve(null),
     listOnlineGames: () => Promise.resolve([]),
     submitOnlineTurn: () => Promise.resolve(),
+    watchOnlineGame: () => () => {},
     ...over,
   }
 }

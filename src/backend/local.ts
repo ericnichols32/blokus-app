@@ -67,6 +67,21 @@ export function createLocalBackend(): Backend {
       return readOnline().filter((g) => g.playerIds.includes(playerId))
     },
 
+    watchOnlineGame(gameId, onChange) {
+      // A storage event fires in every *other* tab of this browser, which is as
+      // close as a device-only store gets to somebody else moving — and is
+      // exactly how two accounts in two tabs are tested.
+      if (typeof window === 'undefined') return () => {}
+
+      const handler = (event: StorageEvent) => {
+        if (event.key !== ONLINE_KEY) return
+        const game = readOnline().find((g) => g.id === gameId)
+        if (game) onChange(game)
+      }
+      window.addEventListener('storage', handler)
+      return () => window.removeEventListener('storage', handler)
+    },
+
     async submitOnlineTurn(game, expectedMoveCount) {
       const games = readOnline()
       const stored = games.find((g) => g.id === game.id)

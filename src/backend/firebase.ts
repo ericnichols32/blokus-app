@@ -123,6 +123,35 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
       return snap.docs.map((d) => fromStored(d.data() as StoredOnlineGame))
     },
 
+    watchOnlineGame(gameId, onChange) {
+      let stop: (() => void) | null = null
+      let cancelled = false
+
+      // connect() is async, so the caller gets its unsubscribe immediately and
+      // the real one is wired up behind it — a screen closed in that gap must
+      // still end up with nothing listening.
+      void connect(config)
+        .then(({ db, fs }) => {
+          if (cancelled) return
+          stop = fs.onSnapshot(
+            fs.doc(db, 'onlineGames', gameId),
+            (snap) => {
+              if (snap.exists()) onChange(fromStored(snap.data() as StoredOnlineGame))
+            },
+            () => {
+              // Dropped connection or a rule refusal. The screen still has the
+              // board it loaded, and its own refresh still works.
+            },
+          )
+        })
+        .catch(() => {})
+
+      return () => {
+        cancelled = true
+        stop?.()
+      }
+    },
+
     async submitOnlineTurn(game, expectedMoveCount) {
       const { db, fs } = await connect(config)
       const ref = fs.doc(db, 'onlineGames', game.id)

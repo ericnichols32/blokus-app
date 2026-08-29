@@ -230,6 +230,22 @@ export class StaleTurnError extends OnlineError {
 }
 
 /**
+ * Watches one game for somebody else's move, and hands back the way to stop.
+ *
+ * The caller gets every change including the echo of its own write, which is
+ * harmless: the store is the truth, and what comes back is what it holds.
+ */
+export function watchGame(gameId: string, onChange: (game: OnlineGame) => void): () => void {
+  try {
+    return getBackend().watchOnlineGame(gameId, onChange)
+  } catch {
+    // No watch is a game that has to be refreshed by hand, not a broken one, so
+    // this never takes the screen down with it.
+    return () => {}
+  }
+}
+
+/**
  * An online game dressed as a Session, which is what the board renders.
  *
  * `youAre` is the point of the exercise: every seat here can be a person, so

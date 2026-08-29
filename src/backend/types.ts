@@ -62,6 +62,16 @@ export interface Backend {
    * `StaleGameError` in that case, and the caller re-reads and tries again.
    */
   submitOnlineTurn(game: OnlineGame, expectedMoveCount: number): Promise<void>
+
+  /**
+   * Calls back whenever the stored game changes, and returns the way to stop.
+   *
+   * This is what makes an opponent's move appear rather than having to be gone
+   * looking for. Re-reading on a timer would do the same job badly: a turn in an
+   * async game arrives at no predictable moment, so any interval is either too
+   * slow to feel live or mostly wasted requests.
+   */
+  watchOnlineGame(gameId: string, onChange: (game: OnlineGame) => void): () => void
 }
 
 /** Thrown when a turn is written against a game that has already moved on. */

@@ -33,6 +33,7 @@ import {
   sessionFor,
   summarize,
   takeTurn,
+  watchGame,
 } from './onlineActions'
 import type { OnlineGame } from './online'
 import {
@@ -163,6 +164,28 @@ function Screens({ settings, setSettings }: ScreensProps) {
     },
     [bankOnlineGame],
   )
+
+  /*
+   * Watch the open game, so a friend's move appears instead of having to be
+   * gone looking for. Keyed on the game's id rather than the game itself, which
+   * changes on every move and would tear the listener down and rebuild it each
+   * time.
+   */
+  const openGameId = screen === 'online-game' ? onlineGame?.id : undefined
+  useEffect(() => {
+    if (!openGameId) return
+    return watchGame(openGameId, (fresh) => {
+      setOnlineGame((current) => {
+        // Ignore anything staler than what is already on screen. Snapshots can
+        // arrive out of order, and going backwards would un-play a move.
+        if (current && current.id === fresh.id && fresh.moves.length < current.moves.length) {
+          return current
+        }
+        return fresh
+      })
+      bankOnlineGame(fresh)
+    })
+  }, [openGameId, bankOnlineGame])
 
   const submitOnlineMove = useCallback(
     async (move: { pieceId: PieceId; cells: Point[] }) => {

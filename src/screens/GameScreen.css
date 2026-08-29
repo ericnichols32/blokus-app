@@ -2,6 +2,18 @@
   justify-content: center;
 }
 
+/* The tray in seven columns rather than six: 21 pieces then fill three rows
+   instead of four, which hands the board back a row's worth of height. */
+.game .piece-tray {
+  grid-template-columns: repeat(7, 1fr);
+  flex: 0 0 auto;
+}
+
+.game .status-bar,
+.game .piece-controls {
+  flex: 0 0 auto;
+}
+
 .status-bar {
   display: flex;
   align-items: center;
@@ -86,8 +98,47 @@
   z-index: 1000;
 }
 
+/*
+ * Takes every pixel the fixed rows above and below don't, so the board is as
+ * big as the phone allows. min-height: 0 is what lets it shrink below the
+ * board's own size on a short screen — without it a flex item refuses to.
+ */
 .board-area {
   position: relative;
+  /*
+   * Basis zero, not auto: the area must take its height from what is left over
+   * rather than from the board inside it, or the board sizes the area and the
+   * area can never make the board smaller. That circularity is what pushed the
+   * tray off the bottom of a short screen.
+   */
+  flex: 1 1 0;
+  min-height: 0;
+  /*
+   * Makes this the box the board measures itself against, so the board can ask
+   * for "the smaller of my frame's width and height" in one expression. Every
+   * attempt to do that with width/height plus max-* ended up over-constrained:
+   * the cap would clamp one axis and leave the other at its old value, and the
+   * board came out a rectangle.
+   */
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* A zoomed board is clipped to its own area rather than spilling over the
+     tray and the controls. */
+  overflow: hidden;
+}
+
+/* Carries the pinch. Separate from the board itself, which is already carrying
+   the quarter-turns, so the two transforms compose instead of fighting. */
+.board-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  will-change: transform;
 }
 
 .piece-controls {

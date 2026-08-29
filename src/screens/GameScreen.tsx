@@ -17,6 +17,8 @@ import {
 import type { Cell, Color, GameState, PieceId, Point } from '../game'
 import { rotateCells } from '../game'
 import { rotationFacing, screenToBoard } from '../boardView'
+import { clampZoom, NO_ZOOM, ZOOM_SNAP_BACK } from '../boardZoom'
+import type { Zoom } from '../boardZoom'
 import type { ViewRotation } from '../boardView'
 import type { Session } from '../session'
 import type { Settings } from '../settings'
@@ -86,6 +88,7 @@ const TICK_MS = 200
  * applied here, and the computers are left alone because whoever's write lands
  * plays them (see online.ts — nothing on a server can).
  */
+
 export interface OnlineControls {
   /** Whether the color on turn is one of yours. */
   yourTurn: boolean
@@ -137,6 +140,17 @@ export function GameScreen({
   const dragPointerId = useRef<number | null>(null)
   const dragCells = useRef<readonly Cell[]>([])
 
+  const [zoom, setZoom] = useState<Zoom>(NO_ZOOM)
+  /**
+   * Every finger currently on the board. Two of them is a pinch rather than a
+   * placement, and the count is the only way to tell the difference at the
+   * moment the second one lands.
+   */
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinchStart = useRef<{ distance: number; mid: { x: number; y: number }; zoom: Zoom } | null>(
+    null,
+  )
+
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const currentSeat = session.seats[currentPlayer.color]
   /*
@@ -146,6 +160,19 @@ export function GameScreen({
    * seat twice from two places.
    */
   const isComputerTurn = !online && currentSeat.kind === 'computer' && !gameState.gameOver
+
+  /**
+   * Whose pieces the tray shows.
+   *
+   * Your own, unless the seat on turn is already yours. The tray is your hand,
+   * and on somebody else's turn it used to fill with *their* pieces — which
+   * looked like your set had been replaced, and told you nothing you can act on.
+   * Holding two colours is why this can't just be `youAre`: on your own turn the
+   * seat playing may be your second colour.
+   */
+  const currentIsYours = online ? online.yourTurn : currentSeat.kind === 'human'
+  const handColor = currentIsYours ? currentPlayer.color : (session.youAre ?? currentPlayer.color)
+  const handPlayer = gameState.players.find((p) => p.color === handColor) ?? currentPlayer
 
   /**
    * The angle the board sits at: your own corner nearest you, so the shape in
@@ -378,7 +405,13 @@ export function GameScreen({
     // these stay valid — but the square being aimed at has to be turned back
     // into board coordinates.
     const cellSize = rect.width / BOARD_SIZE
-    const aimY = clientY - LIFT_IN_CELLS * cellSize
+    /*
+     * The lift is measured in unzoomed cells, so it stays the same distance up
+     * the screen however far the board is zoomed. It exists to clear a
+     * fingertip, and a fingertip does not get bigger with the board — left in
+     * scaled cells, a zoomed board would fling the piece half a screen away.
+     */
+    const aimY = clientY - (LIFT_IN_CELLS * cellSize) / zoom.scale
 
     if (clientX < rect.left || clientX >= rect.right || aimY < rect.top || aimY >= rect.bottom) {
       setAnchor(null)
@@ -414,20 +447,96 @@ export function GameScreen({
    * getting stranded in a spot it can't legally sit in.
    */
   function handleBoardDragStart(e: React.PointerEvent<HTMLDivElement>) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+    // A second finger turns the gesture into a pinch. Whatever the first one was
+    // doing is abandoned rather than finished — two fingers on a board is nobody
+    // trying to place a piece, and letting the drag continue would have the
+    // piece chase one finger while the board moved under it.
+    if (pointers.current.size >= 2) {
+      dragPointerId.current = null
+      setDragPointerPos(null)
+      beginPinch()
+      return
+    }
+
     if (isComputerTurn || !selectedPieceId) return
     beginDrag(e, currentCells)
   }
 
   function handleDragMove(e: React.PointerEvent<Element>) {
+    if (pointers.current.has(e.pointerId)) {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    }
+    if (pointers.current.size >= 2) {
+      updatePinch()
+      return
+    }
+
     if (e.pointerId !== dragPointerId.current) return
     setDragPointerPos({ x: e.clientX, y: e.clientY })
     updateAnchorFromPoint(e.clientX, e.clientY, dragCells.current)
   }
 
   function handleDragEnd(e: React.PointerEvent<Element>) {
+    pointers.current.delete(e.pointerId)
+    if (pointers.current.size < 2) {
+      pinchStart.current = null
+      // Let all the way out and it goes back square, rather than resting a
+      // percent or two off true for the rest of the game.
+      setZoom((current) => (current.scale <= ZOOM_SNAP_BACK ? NO_ZOOM : current))
+    }
+
     if (e.pointerId !== dragPointerId.current) return
     dragPointerId.current = null
     setDragPointerPos(null)
+  }
+
+  /** The two fingers as they are right now, or null if there aren't two. */
+  function twoFingers() {
+    const [a, b] = [...pointers.current.values()]
+    if (!a || !b) return null
+    return {
+      distance: Math.hypot(a.x - b.x, a.y - b.y),
+      mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    }
+  }
+
+  function beginPinch() {
+    const fingers = twoFingers()
+    if (!fingers || fingers.distance === 0) return
+    pinchStart.current = { distance: fingers.distance, mid: fingers.mid, zoom }
+  }
+
+  function updatePinch() {
+    const start = pinchStart.current
+    const fingers = twoFingers()
+    if (!start || !fingers || start.distance === 0) return
+
+    const size = boardRef.current?.getBoundingClientRect().width
+    if (!size) return
+
+    /*
+     * Zooming is about the middle of the board and panning follows the midpoint
+     * of the two fingers. Not a true focal-point zoom, which pins the exact spot
+     * between the fingers: that reads better in a photo viewer, and here it
+     * fights the clamp that keeps the board covering its frame, since the board
+     * must never be draggable off into empty space. Panning with the same two
+     * fingers reaches every corner anyway.
+     */
+    const scale = start.zoom.scale * (fingers.distance / start.distance)
+    setZoom(
+      clampZoom(
+        {
+          scale,
+          x: start.zoom.x + (fingers.mid.x - start.mid.x),
+          y: start.zoom.y + (fingers.mid.y - start.mid.y),
+        },
+        // The frame's size, not the scaled board's: the clamp is expressed in
+        // how far the board may hang off its own unzoomed footprint.
+        size / start.zoom.scale,
+      ),
+    )
   }
 
   function confirmPlacement() {
@@ -575,18 +684,25 @@ export function GameScreen({
       {settings.showLiveScores && <ScoreStrip session={session} />}
 
       <div className="board-area">
-        <Board
-          ref={boardRef}
-          board={gameState.board}
-          previewCells={previewCells}
-          previewColor={hasSelection ? currentPlayer.color : null}
-          previewValid={previewCheck?.valid ?? false}
-          rotation={viewRotation}
-          awaitingFirstMove={awaitingFirstMove}
-          onPointerDown={handleBoardDragStart}
-          onPointerMove={handleDragMove}
-          onPointerUp={handleDragEnd}
-        />
+        <div
+          className="board-zoom"
+          style={{
+            transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`,
+          }}
+        >
+          <Board
+            ref={boardRef}
+            board={gameState.board}
+            previewCells={previewCells}
+            previewColor={hasSelection ? currentPlayer.color : null}
+            previewValid={previewCheck?.valid ?? false}
+            rotation={viewRotation}
+            awaitingFirstMove={awaitingFirstMove}
+            onPointerDown={handleBoardDragStart}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+          />
+        </div>
       </div>
 
       {/* Only while the piece is off the board — once it's over the grid the
@@ -633,8 +749,8 @@ export function GameScreen({
       </div>
 
       <PieceTray
-        pieceIds={currentPlayer.remainingPieceIds}
-        color={currentPlayer.color}
+        pieceIds={handPlayer.remainingPieceIds}
+        color={handColor}
         selectedPieceId={selectedPieceId}
         selectedIsOnBoard={clampedAnchor !== null}
         rotation={viewRotation}
