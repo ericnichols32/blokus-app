@@ -135,7 +135,9 @@ export function OnlineGamesScreen({
       </button>
 
       {games === null ? (
-        <p className="note">{loading ? 'Loading your games…' : ''}</p>
+        // Nothing at all before the first load answers, rather than an empty
+        // paragraph holding a gap open where the list is about to appear.
+        loading ? <p className="note">Loading your games…</p> : null
       ) : games.yours.length + games.theirs.length + games.finished.length === 0 ? (
         <section className="empty">
           <p className="empty-title">No games yet</p>
