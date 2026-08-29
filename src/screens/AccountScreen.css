@@ -81,3 +81,68 @@
   background: transparent;
   color: #f87171;
 }
+
+/* The PIN fields, and the two notes that go with them. */
+.pin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pin-label {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.pin-input {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #f8fafc;
+  font-family: inherit;
+  /* Wide tracking so four dots read as four, not as a smudge. 16px keeps iOS
+     from zooming the page when the field takes focus. */
+  font-size: 22px;
+  letter-spacing: 10px;
+  text-align: center;
+}
+
+.pin-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+/* Louder than .account-note, for the things that cannot be undone. */
+.account-warn {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #78350f;
+  background: #241a09;
+  color: #fcd34d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.account-section {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.account-section h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.account-section .account-warn,
+.account-section .account-note {
+  margin-top: 0;
+}

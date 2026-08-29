@@ -22,12 +22,19 @@ export function createLocalBackend(): Backend {
       return readPlayers().find((p) => normalizeUsername(p.username) === key) ?? null
     },
 
-    async claimUsername(playerId, username) {
+    async claimUsername(playerId, username, _previousUsername, pin) {
       const players = readPlayers().filter((p) => p.playerId !== playerId)
       const existing = readPlayers().find((p) => p.playerId === playerId)
       writePlayers([
         ...players,
-        { playerId, username, createdAt: existing?.createdAt ?? new Date().toISOString() },
+        {
+          playerId,
+          username,
+          createdAt: existing?.createdAt ?? new Date().toISOString(),
+          // Undefined leaves whatever was there: signing in on another device
+          // must not wipe the PIN just because it wasn't being changed.
+          pin: pin ?? existing?.pin,
+        },
       ])
     },
 

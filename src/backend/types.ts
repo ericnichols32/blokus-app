@@ -1,5 +1,6 @@
 import type { GameRecord } from '../history'
 import type { OnlineGame } from '../online'
+import type { PinRecord } from '../pin'
 
 /**
  * The shared store, as the app sees it.
@@ -26,7 +27,12 @@ export interface Backend {
    * an existing name is how signing in on a second device works, so this is a
    * join, not a conflict. Renaming releases the previous name.
    */
-  claimUsername(playerId: string, username: string, previousUsername?: string): Promise<void>
+  claimUsername(
+    playerId: string,
+    username: string,
+    previousUsername?: string,
+    pin?: PinRecord,
+  ): Promise<void>
 
   /** The profile behind an id, or null if the store has never seen it. */
   getPlayer(playerId: string): Promise<PlayerProfile | null>
@@ -71,4 +77,12 @@ export interface PlayerProfile {
   /** With the capitalisation its owner typed. */
   username: string
   createdAt: string
+  /**
+   * The PIN guarding this name, absent on an account that has never set one.
+   *
+   * It travels with the profile because the check happens on the device — there
+   * is no server code to do it — so anyone who can look a name up can read this.
+   * That is why it is a slow salted hash and never the digits. See pin.ts.
+   */
+  pin?: PinRecord
 }

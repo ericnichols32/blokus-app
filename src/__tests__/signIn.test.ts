@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetBackend } from '../backend'
 import { stubBackend } from './helpers/backendStub'
 import { createLocalBackend } from '../backend/local'
-import { checkUsername, claim } from '../signIn'
+import { checkUsername, claim, setPin, unlocks } from '../signIn'
 
 function installStorage() {
   const store = new Map<string, string>()
@@ -117,5 +117,82 @@ describe('when the server is unreachable', () => {
     expect(check.status).toBe('error')
     if (check.status !== 'error') throw new Error('unreachable')
     expect(check.reason).toMatch(/connection/i)
+  })
+})
+
+describe('a PIN on a name', () => {
+  it('is required to take a name that has one', async () => {
+    const mine = await claim('eric', { pin: '4821' })
+
+    const check = await checkUsername('eric')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(check.needsPin).toBe(true)
+    expect(await unlocks(check.profile, '4821')).toBe(true)
+    expect(await unlocks(check.profile, '0000')).toBe(false)
+    expect(mine.username).toBe('eric')
+  })
+
+  it('is not required by a name claimed before PINs existed', async () => {
+    // Locking somebody out of their own account is the one thing that cannot be
+    // undone, so an account with no PIN stays reachable exactly as before.
+    await claim('legacy')
+
+    const check = await checkUsername('legacy')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(check.needsPin).toBe(false)
+    expect(await unlocks(check.profile, '')).toBe(true)
+    expect(await unlocks(check.profile, 'anything')).toBe(true)
+  })
+
+  it('survives signing in on another device', async () => {
+    // Adopting an account passes no PIN, and that must leave the stored one
+    // alone rather than wiping the protection by arriving.
+    const first = await claim('eric', { pin: '4821' })
+    await claim('eric', { adoptPlayerId: first.playerId })
+
+    const check = await checkUsername('eric')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(check.needsPin).toBe(true)
+    expect(await unlocks(check.profile, '4821')).toBe(true)
+  })
+
+  it('survives a rename', async () => {
+    const account = await claim('eric', { pin: '4821' })
+    await claim('erica', { existing: account })
+
+    const check = await checkUsername('erica')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(check.needsPin).toBe(true)
+    expect(await unlocks(check.profile, '4821')).toBe(true)
+  })
+
+  it('can be set later by whoever is already signed in', async () => {
+    const account = await claim('eric')
+    expect((await checkUsername('eric')).status).toBe('taken')
+
+    await setPin(account, '1357')
+
+    const check = await checkUsername('eric')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(check.needsPin).toBe(true)
+    expect(await unlocks(check.profile, '1357')).toBe(true)
+  })
+
+  it('can be changed, and the old one stops working', async () => {
+    const account = await claim('eric', { pin: '1111' })
+    await setPin(account, '2222')
+
+    const check = await checkUsername('eric')
+    if (check.status !== 'taken') throw new Error('expected the name to be taken')
+    expect(await unlocks(check.profile, '2222')).toBe(true)
+    expect(await unlocks(check.profile, '1111')).toBe(false)
+  })
+
+  it('refuses to store something that is not four digits', async () => {
+    await expect(claim('eric', { pin: '12' })).rejects.toThrow(/4 digits/)
+    await expect(claim('eric', { pin: 'abcd' })).rejects.toThrow(/Digits only/)
+
+    const account = await claim('dave')
+    await expect(setPin(account, '99999')).rejects.toThrow(/4 digits/)
   })
 })

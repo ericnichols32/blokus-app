@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { USERNAME_MAX } from '../account'
 import type { Account } from '../account'
-import { isOnline } from '../backend'
-import { checkUsername, claim } from '../signIn'
+import { getBackend, isOnline } from '../backend'
+import { checkUsername, claim, setPin, unlocks } from '../signIn'
+import { hasPin, PIN_LENGTH } from '../pin'
 import type { PlayerProfile } from '../backend'
 import './AccountScreen.css'
 
@@ -20,58 +21,99 @@ interface AccountScreenProps {
 }
 
 /**
- * Two jobs in one screen, because they are the same form: claiming a name the
- * first time, and changing it later.
+ * Claiming a name, changing it, and the PIN that guards it.
  *
- * The interesting case is a name that already exists. There are no passwords,
- * so an existing name is not an error to be refused — it is almost always you,
- * arriving on a second device. The screen asks, and taking it brings your games
- * with you. Renaming is the one case where a taken name is a refusal: you are
- * already someone, and quietly merging you into a different person would lose
- * the games filed under the one you were.
+ * The interesting case is still a name that already exists: it is almost always
+ * you, arriving on a second device, so the screen asks rather than refusing.
+ * What has changed is that it now asks for the PIN too — that is the whole point
+ * of having one. Names claimed before PINs existed have none and still open to
+ * anyone who types them, which is why this screen nags their owners to set one.
+ *
+ * Renaming is the one case where a taken name is a refusal: you are already
+ * someone, and merging you into a different person would lose your games.
  */
+type Step = 'name' | 'choose-pin' | 'confirm-identity'
+
 export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: AccountScreenProps) {
   const [name, setName] = useState(account?.username ?? '')
+  const [step, setStep] = useState<Step>('name')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<PlayerProfile | null>(null)
+  const [pin, setPinValue] = useState('')
+  const [pinAgain, setPinAgain] = useState('')
+  /** Whether the signed-in account already has a PIN; null while unknown. */
+  const [protectedAlready, setProtectedAlready] = useState<boolean | null>(null)
 
   const renaming = account !== null
   const shared = isOnline()
 
-  async function submit(event: FormEvent) {
+  // Whether to offer "set a PIN" or "change PIN" — and, for an account without
+  // one, whether to say so plainly.
+  useEffect(() => {
+    if (!account) return
+    let cancelled = false
+    void getBackend()
+      .getPlayer(account.playerId)
+      .then((profile) => {
+        if (!cancelled) setProtectedAlready(hasPin(profile?.pin))
+      })
+      .catch(() => {
+        // Can't tell. Better to say nothing than to claim it's unprotected.
+        if (!cancelled) setProtectedAlready(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [account])
+
+  function resetPins() {
+    setPinValue('')
+    setPinAgain('')
+  }
+
+  async function submitName(event: FormEvent) {
     event.preventDefault()
     if (busy) return
 
     setBusy(true)
     setError(null)
-
     const result = await checkUsername(name, account?.playerId)
+    setBusy(false)
 
     if (result.status === 'invalid' || result.status === 'error') {
       setError(result.reason)
-      setBusy(false)
       return
     }
 
     // Already your own name — nothing to do but leave.
     if (result.status === 'yours') {
-      setBusy(false)
       onClose()
       return
     }
 
     if (result.status === 'taken') {
-      setBusy(false)
-      if (renaming) setError(`@${result.profile.username} is taken. Pick another.`)
-      else setConfirming(result.profile)
+      if (renaming) {
+        setError(`@${result.profile.username} is taken. Pick another.`)
+        return
+      }
+      resetPins()
+      setConfirming(result.profile)
+      setStep('confirm-identity')
       return
     }
 
-    await finish({})
+    // A free name. Renaming keeps the account it already has, PIN and all; a
+    // brand new one picks a PIN before it exists.
+    if (renaming) {
+      await finish({})
+      return
+    }
+    resetPins()
+    setStep('choose-pin')
   }
 
-  async function finish(options: { adoptPlayerId?: string }) {
+  async function finish(options: { adoptPlayerId?: string; pin?: string }) {
     setBusy(true)
     setError(null)
     try {
@@ -79,46 +121,148 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setBusy(false)
-      setConfirming(null)
     }
   }
 
-  if (confirming) {
+  /** Sets a PIN on a brand new name, or replaces one on the account you hold. */
+  async function submitChosenPin(event: FormEvent) {
+    event.preventDefault()
+    if (busy) return
+
+    if (pin !== pinAgain) {
+      setError("Those don't match.")
+      return
+    }
+
+    if (account) {
+      setBusy(true)
+      setError(null)
+      try {
+        await setPin(account, pin)
+        setProtectedAlready(true)
+        setStep('name')
+        resetPins()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Something went wrong.')
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+
+    await finish({ pin })
+  }
+
+  async function submitIdentity(event: FormEvent) {
+    event.preventDefault()
+    if (busy || !confirming) return
+
+    setBusy(true)
+    setError(null)
+
+    if (!(await unlocks(confirming, pin))) {
+      setError("That PIN doesn't match. Try again, or pick a different name.")
+      setBusy(false)
+      return
+    }
+
+    await finish({ adoptPlayerId: confirming.playerId })
+  }
+
+  function backToName() {
+    setStep('name')
+    setConfirming(null)
+    resetPins()
+    setError(null)
+  }
+
+  if (step === 'choose-pin') {
     return (
       <div className="screen inner account">
         <header className="screen-header">
+          <button type="button" className="icon-btn" onClick={backToName} aria-label="Back">
+            ‹
+          </button>
+          {/* "Change" only when there is one to change. An account that has
+              never had a PIN is choosing its first. */}
+          <h1>{protectedAlready ? 'Change your PIN' : 'Choose a PIN'}</h1>
+        </header>
+
+        <p className="account-lede">
+          {PIN_LENGTH} digits. You'll need it to sign in as <strong>@{name}</strong> on another
+          phone.
+        </p>
+
+        <form className="stack" onSubmit={submitChosenPin}>
+          <PinField label="PIN" value={pin} onChange={setPinValue} autoFocus />
+          {/* Asked twice on purpose: there is no way to reset a PIN, so a typo
+              here would cost the name permanently. */}
+          <PinField label="Type it again" value={pinAgain} onChange={setPinAgain} />
+
           <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setConfirming(null)}
-            aria-label="Back"
+            type="submit"
+            className="btn primary tall"
+            disabled={busy || pin.length !== PIN_LENGTH || pinAgain.length !== PIN_LENGTH}
           >
+            <span>{busy ? 'Saving…' : account ? 'Save PIN' : 'Create my name'}</span>
+          </button>
+        </form>
+
+        {error && <p className="account-error">{error}</p>}
+
+        <p className="account-warn">
+          There's no way to reset this. Nothing here knows your email or your phone number, so
+          there's nothing to prove it's you with. Forget the PIN and you'll have to start again
+          under a new name — the games under this one stay with it.
+        </p>
+      </div>
+    )
+  }
+
+  if (step === 'confirm-identity' && confirming) {
+    const needsPin = hasPin(confirming.pin)
+
+    return (
+      <div className="screen inner account">
+        <header className="screen-header">
+          <button type="button" className="icon-btn" onClick={backToName} aria-label="Back">
             ‹
           </button>
           <h1>Is this you?</h1>
         </header>
 
         <p className="account-lede">
-          Somebody already goes by <strong>@{confirming.username}</strong>. If that's you, take it —
-          your games will follow you to this device. If it isn't, pick a different name.
+          Somebody already goes by <strong>@{confirming.username}</strong>.{' '}
+          {needsPin
+            ? "If that's you, enter your PIN and your games will follow you to this device."
+            : "If that's you, take it — your games will follow you to this device. If it isn't, pick a different name."}
         </p>
 
-        <div className="stack">
+        <form className="stack" onSubmit={submitIdentity}>
+          {needsPin && <PinField label="Their PIN" value={pin} onChange={setPinValue} autoFocus />}
+
           <button
-            type="button"
+            type="submit"
             className="btn primary tall"
-            disabled={busy}
-            onClick={() => finish({ adoptPlayerId: confirming.playerId })}
+            disabled={busy || (needsPin && pin.length !== PIN_LENGTH)}
           >
             <span>{busy ? 'Signing in…' : `Yes, I'm @${confirming.username}`}</span>
             <span className="sub">Sign in and bring my games here</span>
           </button>
-          <button type="button" className="btn tall" disabled={busy} onClick={() => setConfirming(null)}>
+          <button type="button" className="btn tall" disabled={busy} onClick={backToName}>
             <span>No, pick another name</span>
           </button>
-        </div>
+        </form>
 
         {error && <p className="account-error">{error}</p>}
+
+        {!needsPin && (
+          // The honest reason this let them straight in, said where it is true.
+          <p className="account-note">
+            This name has no PIN, so anyone who types it can sign in as them. Whoever owns it can
+            set one from their own account screen.
+          </p>
+        )}
       </div>
     )
   }
@@ -140,10 +284,10 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
       <p className="account-lede">
         {renaming
           ? 'Change what your friends see. Your games stay with you.'
-          : 'This is how your friends will find you. No password — typing this name on another device signs you back in.'}
+          : `This is how your friends will find you. You'll pick a ${PIN_LENGTH}-digit PIN next, so that typing this name on another phone signs you back in and nobody else.`}
       </p>
 
-      <form className="stack" onSubmit={submit}>
+      <form className="stack" onSubmit={submitName}>
         <div className="name-field">
           <span className="at" aria-hidden="true">
             @
@@ -193,6 +337,35 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
         </p>
       )}
 
+      {renaming && protectedAlready !== null && (
+        <div className="account-section">
+          <h2>PIN</h2>
+          {protectedAlready ? (
+            <p className="account-note">
+              Your name is protected. You'll need this PIN to sign in on another phone, and there's
+              no way to reset it.
+            </p>
+          ) : (
+            <p className="account-warn">
+              Your name has no PIN, so anyone who types <strong>@{account.username}</strong> can
+              sign in as you and pick up your games.
+            </p>
+          )}
+          <button
+            type="button"
+            className={protectedAlready ? 'btn' : 'btn primary'}
+            disabled={busy}
+            onClick={() => {
+              resetPins()
+              setError(null)
+              setStep('choose-pin')
+            }}
+          >
+            {protectedAlready ? 'Change PIN' : 'Set a PIN'}
+          </button>
+        </div>
+      )}
+
       {renaming && (
         <div className="account-footer">
           <button type="button" className="btn danger" onClick={onSignOut} disabled={busy}>
@@ -204,5 +377,34 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
         </div>
       )}
     </div>
+  )
+}
+
+interface PinFieldProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  autoFocus?: boolean
+}
+
+function PinField({ label, value, onChange, autoFocus }: PinFieldProps) {
+  return (
+    <label className="pin-field">
+      <span className="pin-label">{label}</span>
+      <input
+        className="pin-input"
+        value={value}
+        // Digits only, and never more than fit — so the only thing that can be
+        // wrong by the time it is submitted is the PIN itself.
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, PIN_LENGTH))}
+        inputMode="numeric"
+        autoComplete="off"
+        // The digits are a secret from whoever is looking over your shoulder.
+        type="password"
+        maxLength={PIN_LENGTH}
+        aria-label={label}
+        autoFocus={autoFocus}
+      />
+    </label>
   )
 }

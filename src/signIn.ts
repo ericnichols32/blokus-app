@@ -1,6 +1,7 @@
 import { newPlayerId, normalizeUsername, usernameProblem } from './account'
 import type { Account } from './account'
 import { getBackend } from './backend'
+import { hasPin, hashPin, pinProblem, verifyPin } from './pin'
 import type { PlayerProfile } from './backend'
 
 /**
@@ -13,7 +14,7 @@ import type { PlayerProfile } from './backend'
 export type UsernameCheck =
   | { status: 'invalid'; reason: string }
   | { status: 'free' }
-  | { status: 'taken'; profile: PlayerProfile }
+  | { status: 'taken'; profile: PlayerProfile; needsPin: boolean }
   | { status: 'yours'; profile: PlayerProfile }
   | { status: 'error'; reason: string }
 
@@ -31,9 +32,12 @@ export async function checkUsername(
   try {
     const profile = await getBackend().lookupUsername(username)
     if (!profile) return { status: 'free' }
-    return profile.playerId === currentPlayerId
-      ? { status: 'yours', profile }
-      : { status: 'taken', profile }
+    if (profile.playerId === currentPlayerId) return { status: 'yours', profile }
+
+    // Names claimed before PINs existed have none, and must stay reachable by
+    // their owners — locking somebody out of their own account is the one thing
+    // that cannot be undone here.
+    return { status: 'taken', profile, needsPin: hasPin(profile.pin) }
   } catch (error) {
     return { status: 'error', reason: describeError(error) }
   }
@@ -48,11 +52,16 @@ export async function checkUsername(
  */
 export async function claim(
   username: string,
-  options: { adoptPlayerId?: string; existing?: Account } = {},
+  options: { adoptPlayerId?: string; existing?: Account; pin?: string } = {},
 ): Promise<Account> {
   const trimmed = username.trim()
   const problem = usernameProblem(trimmed)
   if (problem) throw new Error(problem)
+
+  if (options.pin !== undefined) {
+    const pinIssue = pinProblem(options.pin)
+    if (pinIssue) throw new Error(pinIssue)
+  }
 
   const playerId = options.adoptPlayerId ?? options.existing?.playerId ?? newPlayerId()
   const renamedFrom =
@@ -60,8 +69,37 @@ export async function claim(
       ? options.existing.username
       : undefined
 
-  await getBackend().claimUsername(playerId, trimmed, renamedFrom)
+  // Hashing is deliberately slow, so only do it when a PIN is actually being
+  // set. Leaving it undefined tells the store to keep whatever is already there.
+  const record = options.pin === undefined ? undefined : await hashPin(options.pin)
+
+  await getBackend().claimUsername(playerId, trimmed, renamedFrom, record)
   return { playerId, username: trimmed }
+}
+
+/**
+ * Whether `pin` opens `profile`.
+ *
+ * An account with no PIN is open to anyone who types the name, exactly as every
+ * account was before PINs existed. That is the deliberate cost of not locking
+ * out the people who claimed a name first — the app asks them to set one.
+ */
+export async function unlocks(profile: PlayerProfile, pin: string): Promise<boolean> {
+  if (!hasPin(profile.pin)) return true
+  return verifyPin(pin, profile.pin)
+}
+
+/** Sets or replaces the PIN on the account already signed in on this device. */
+export async function setPin(account: Account, pin: string): Promise<void> {
+  const problem = pinProblem(pin)
+  if (problem) throw new Error(problem)
+
+  await getBackend().claimUsername(
+    account.playerId,
+    account.username,
+    undefined,
+    await hashPin(pin),
+  )
 }
 
 /**

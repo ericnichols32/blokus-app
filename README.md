@@ -85,6 +85,7 @@ src/
   history.ts     Finished games, summarised as they end
   stats.ts       Turns those summaries into the figures on the stats screen
   account.ts     Who you are on this device, and the username rules
+  pin.ts         Hashing and checking the four digits, and what that is worth
   signIn.ts      Claiming, adopting and renaming
   sync.ts        Pushing finished games up to your account
   turnClock.ts   The two budgets a timed turn is made of
@@ -280,22 +281,43 @@ The store is capped at 500 games, oldest dropped first.
 
 ## Accounts
 
-A username, no password. You are asked for one the first time you open the app,
-once — declining is remembered, and the chip in the top-left corner of the home
-screen is the way back in.
+A username and a four-digit PIN. You are asked for both the first time you open
+the app, once — declining is remembered, and the chip in the top-left corner of
+the home screen is the way back in.
 
-### Why there is no password
+### The name is the account
 
 Typing a name that already exists **signs you in as that person** rather than
 being refused. That is the whole mechanism: open the link on a second phone,
-type your name, confirm it's you, and your games are there. It is also the only
-recovery there is, since nothing else is stored about you.
+type your name and its PIN, and your games are there.
 
-The cost is stated plainly: anyone with the link can become anyone. A friend who
-types your name gets your page. That was an explicit choice — the link only goes
-to people you know, and the alternative is passwords or email sign-in, which is
-a great deal of machinery for a game you play with four friends. If the app ever
-goes wider than that, this is the first thing that has to change.
+### What the PIN does and does not buy
+
+Stated plainly, because the arithmetic is not flattering.
+
+There is no server code here, only a database, so the PIN is checked on the
+device — which means the check has to fetch what it compares against, and anyone
+holding the link can read that. What is stored is a slow salted hash (PBKDF2, a
+random salt, 600k iterations) rather than the digits, so reading it hands nobody
+your PIN. But four digits is ten thousand possibilities, and no iteration count
+rescues a four-digit secret from somebody willing to grind it offline; raising
+the cost only changes how many minutes it takes.
+
+So the PIN stops a friend idly typing `eric` and finding themselves signed in as
+you. It does not stop somebody who has the link, wants in, and will write code.
+Buying that would mean a real login, which is exactly the machinery this app has
+chosen not to have — the link only goes to people you know. If the app ever goes
+wider than that, this is the first thing that has to change.
+
+**There is no recovery, by design.** Nothing here knows an email or a phone
+number, so there is nothing to prove ownership against. Forget the PIN and the
+name is gone, along with the games filed under it. The app says so on the screen
+where a PIN is set, and asks for it twice, because a typo there is permanent.
+
+Names claimed before PINs existed have none, and still open to anyone who types
+them. They had to: locking somebody out of their own account is the one thing
+that cannot be undone. Their owners are told so on the account screen and
+offered a PIN.
 
 ### How it is stored
 

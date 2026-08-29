@@ -2,7 +2,7 @@ import { normalizeUsername } from '../account'
 import type { GameRecord } from '../history'
 import type { FirebaseConfig } from './config'
 import { StaleGameError } from './types'
-import type { Backend } from './types'
+import type { Backend, PlayerProfile } from './types'
 import { fromStored, toStored } from './wire'
 import type { StoredOnlineGame } from './wire'
 
@@ -44,7 +44,7 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
       return player ?? { playerId, username, createdAt: new Date().toISOString() }
     },
 
-    async claimUsername(playerId, username, previousUsername) {
+    async claimUsername(playerId, username, previousUsername, pin) {
       const { db, fs } = await connect(config)
       const now = new Date().toISOString()
       const batch = fs.writeBatch(db)
@@ -56,10 +56,11 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
 
       batch.set(fs.doc(db, 'usernames', normalizeUsername(username)), { playerId, updatedAt: now })
       // merge, so adopting an existing player on a new device refreshes the
-      // name and last-seen time without wiping when they were created.
+      // name and last-seen time without wiping when they were created — or,
+      // just as importantly, without wiping a PIN that isn't being changed.
       batch.set(
         fs.doc(db, 'players', playerId),
-        { playerId, username, createdAt: now, lastSeenAt: now },
+        { playerId, username, createdAt: now, lastSeenAt: now, ...(pin ? { pin } : {}) },
         { merge: true },
       )
 
@@ -76,6 +77,7 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
         playerId,
         username: (data.username as string) ?? '',
         createdAt: (data.createdAt as string) ?? new Date().toISOString(),
+        pin: (data.pin as PlayerProfile['pin']) ?? undefined,
       }
     },
 
