@@ -187,6 +187,59 @@ describe('buildFriendsView', () => {
   })
 })
 
+describe('a friend waiting on your answer', () => {
+  it('outranks a move you owe, and counts as waiting on you', () => {
+    // A proposal is the one thing on this page nobody else can move past: they
+    // cannot take their turn and they cannot start again until you answer.
+    const asked = {
+      ...game({
+        id: 'asked',
+        people: [eric, sam],
+        firstColor: 'yellow',
+        updatedAt: '2026-08-01T00:00:00Z',
+      }),
+      rematch: { proposedBy: 'p-sam', proposedAt: '2026-08-01T00:00:00Z', accepted: ['p-sam'] },
+    }
+    const yourMove = game({
+      id: 'yours',
+      people: [eric, dave],
+      firstColor: 'blue',
+      updatedAt: '2026-08-30T00:00:00Z',
+    })
+
+    const view = buildFriendsView(
+      [profile('p-dave', 'dave'), profile('p-sam', 'sam')],
+      [asked, yourMove],
+      [],
+      'p-eric',
+    )
+
+    // Sam first despite dave's game being the more recent: a proposal outranks
+    // a turn, so the ordering is not just "what moved last".
+    expect(view.friends.map((f) => f.username)).toEqual(['sam', 'dave'])
+    expect(view.waitingOnYou).toBe(2)
+  })
+
+  it('is not waiting on you once you have answered', () => {
+    const answered = {
+      ...game({
+        id: 'answered',
+        people: [eric, sam],
+        firstColor: 'yellow',
+        updatedAt: '2026-08-01T00:00:00Z',
+      }),
+      rematch: {
+        proposedBy: 'p-sam',
+        proposedAt: '2026-08-01T00:00:00Z',
+        accepted: ['p-sam', 'p-eric'],
+      },
+    }
+
+    const view = buildFriendsView([profile('p-sam', 'sam')], [answered], [], 'p-eric')
+    expect(view.waitingOnYou).toBe(0)
+  })
+})
+
 describe('withGameOpponents', () => {
   it('adds somebody who started a game with you', () => {
     // The rule that stops a game going missing: the page is your list, but an

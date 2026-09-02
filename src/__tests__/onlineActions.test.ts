@@ -222,7 +222,7 @@ describe('takeTurn', () => {
 
     // Somebody else's device gets its turn in first.
     const theirs = submitMove(game, onTurn(game), legalMove(game))
-    await createLocalBackend().submitOnlineTurn(theirs, game.moves.length)
+    await createLocalBackend().writeOnlineGame(theirs, game.moves.length)
 
     // This screen is still showing the older board.
     let caught: unknown
@@ -241,7 +241,7 @@ describe('takeTurn', () => {
   it('reports a failed write in words, not as a raw error', async () => {
     const game = await startGame(me, ['dave'], 'double', S.hard)
     resetBackend(
-      stubBackend({ submitOnlineTurn: () => Promise.reject(new Error('network went away')) }),
+      stubBackend({ writeOnlineGame: () => Promise.reject(new Error('network went away')) }),
     )
 
     await expect(takeTurn(game, onTurn(game), legalMove(game))).rejects.toThrow(
@@ -388,10 +388,10 @@ describe('the stale check itself', () => {
   it('is what stops two devices erasing each other', async () => {
     const game = await startGame(me, ['dave'], 'double', S.hard)
     const first = submitMove(game, onTurn(game), legalMove(game))
-    await createLocalBackend().submitOnlineTurn(first, game.moves.length)
+    await createLocalBackend().writeOnlineGame(first, game.moves.length)
 
     await expect(
-      createLocalBackend().submitOnlineTurn(first, game.moves.length),
+      createLocalBackend().writeOnlineGame(first, game.moves.length),
     ).rejects.toThrow(StaleGameError)
   })
 })

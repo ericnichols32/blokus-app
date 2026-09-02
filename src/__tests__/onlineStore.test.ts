@@ -112,7 +112,7 @@ describe('submitting a turn', () => {
     await backend.createOnlineGame(game)
 
     const played = submitMove(game, onTurn(game), legalMove(game))
-    await backend.submitOnlineTurn(played, game.moves.length)
+    await backend.writeOnlineGame(played, game.moves.length)
 
     const all = await backend.listOnlineGames(onTurn(game))
     expect(all.filter((g) => g.id === game.id)).toHaveLength(1)
@@ -130,11 +130,11 @@ describe('submitting a turn', () => {
     // carries that move, so what the caller "believed" is whatever it was given.
     const opening = game.moves.length
     const first = submitMove(game, onTurn(game), legalMove(game))
-    await backend.submitOnlineTurn(first, opening)
+    await backend.writeOnlineGame(first, opening)
 
     // A second write still claiming the board it was handed at the start.
     const stale = submitMove(game, onTurn(game), legalMove(game))
-    await expect(backend.submitOnlineTurn(stale, opening)).rejects.toThrow(StaleGameError)
+    await expect(backend.writeOnlineGame(stale, opening)).rejects.toThrow(StaleGameError)
 
     // And the turn that landed first is still there, untouched.
     expect((await backend.getOnlineGame(game.id))?.moves).toEqual(first.moves)
@@ -145,13 +145,13 @@ describe('submitting a turn', () => {
     await backend.createOnlineGame(game)
 
     const first = submitMove(game, onTurn(game), legalMove(game))
-    await backend.submitOnlineTurn(first, game.moves.length)
+    await backend.writeOnlineGame(first, game.moves.length)
 
     // Re-read, as the app does after a stale write, and play from there.
     const fresh = (await backend.getOnlineGame(game.id))!
     const second = submitMove(fresh, onTurn(fresh), legalMove(fresh))
 
-    await expect(backend.submitOnlineTurn(second, fresh.moves.length)).resolves.toBeUndefined()
+    await expect(backend.writeOnlineGame(second, fresh.moves.length)).resolves.toBeUndefined()
     expect((await backend.getOnlineGame(game.id))?.moves.length).toBe(second.moves.length)
   })
 })

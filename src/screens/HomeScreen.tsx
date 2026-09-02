@@ -1,5 +1,5 @@
 import { Avatar } from '../components/Avatar'
-import { isResumable } from '../session'
+import { describeRound, isResumable } from '../session'
 import type { Session } from '../session'
 import type { Account } from '../account'
 import './HomeScreen.css'
@@ -46,7 +46,6 @@ export function HomeScreen({
   onAccount,
 }: HomeScreenProps) {
   const resumable = saved !== null && saved.mode !== 'online' && isResumable(saved)
-  const placed = saved?.state.placedPieces.length ?? 0
 
   return (
     <div className="screen home">
@@ -64,8 +63,11 @@ export function HomeScreen({
         <button type="button" className="home-card" onClick={onPlaySolo}>
           <span className="home-card-title">Play solo</span>
           <span className={`home-card-sub ${resumable ? 'live' : ''}`}>
-            {resumable
-              ? `Game in progress · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
+            {/* The round rather than a count of pieces: four players' turns
+                are one round, and "10 pieces played" tells you nothing about
+                how far in you are. */}
+            {resumable && saved
+              ? `Game in progress · ${describeRound(saved.state)}`
               : 'You against three computers'}
           </span>
         </button>

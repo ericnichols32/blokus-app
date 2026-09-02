@@ -65,7 +65,10 @@ export function PastGamesScreen({
         <ul className="game-list">
           {games.map((entry) => {
             const yours = yourColorIn(entry.game, playerId)
-            const outcome = outcomeOf(entry.game.id, history)
+            // Stopped by agreement, or played out and looked up in the history.
+            const outcome = entry.game.abandoned
+              ? 'Ended early'
+              : outcomeOf(entry.game.id, history)
             return (
               <li key={entry.game.id}>
                 <button type="button" onClick={() => onOpenGame(entry.game.id)}>

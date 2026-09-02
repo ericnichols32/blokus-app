@@ -329,6 +329,23 @@ export interface FriendStats {
   losses: number
   yourAverageScore: number
   theirAverageScore: number
+  /** Pieces still in hand at the end, averaged over the games together. */
+  yourAveragePiecesLeft: number
+  theirAveragePiecesLeft: number
+  /** Squares still in hand — the same thing weighted by how big they were. */
+  yourAverageSquaresLeft: number
+  theirAverageSquaresLeft: number
+  /** Games each of you got every one of the 21 pieces down. */
+  yourPerfectGames: number
+  theirPerfectGames: number
+  /**
+   * The piece you play more than they do, across your games together.
+   *
+   * Measured against them specifically rather than against every seat on the
+   * board: on their page the interesting comparison is the two of you. Null
+   * until there are enough games for it to mean anything.
+   */
+  favoritePiece: PieceTally | null
   /** Newest first. */
   meetings: FriendMeeting[]
 }
@@ -359,9 +376,39 @@ export interface FriendsSummary {
   unattributedGames: number
 }
 
+/**
+ * Which pieces the two of you got down, counted per friend while the totals are
+ * being added up. Working state for one calculation, so it stays out of
+ * `FriendStats` — nothing on a screen reads it.
+ */
+interface PieceCounts {
+  yours: Map<PieceId, number>
+  theirs: Map<PieceId, number>
+}
+
+/** Adds one game's placements to a friend's running tallies. */
+function countPieces(counts: PieceCounts, you: GameRecordPlayer, them: GameRecordPlayer): void {
+  const yoursLeft = knownPieces(you.piecesLeft)
+  const theirLeft = knownPieces(them.piecesLeft)
+  for (const id of ALL_PIECE_IDS) {
+    if (!yoursLeft.has(id)) counts.yours.set(id, (counts.yours.get(id) ?? 0) + 1)
+    if (!theirLeft.has(id)) counts.theirs.set(id, (counts.theirs.get(id) ?? 0) + 1)
+  }
+}
+
 export function computeFriends(history: GameRecord[], playerId: string): FriendsSummary {
   const byPlayer = new Map<string, FriendStats>()
+  const piecesByPlayer = new Map<string, PieceCounts>()
   let unattributed = 0
+
+  function pieceCountsFor(friendId: string): PieceCounts {
+    let counts = piecesByPlayer.get(friendId)
+    if (!counts) {
+      counts = { yours: new Map(), theirs: new Map() }
+      piecesByPlayer.set(friendId, counts)
+    }
+    return counts
+  }
 
   for (const record of newestFirst(history)) {
     const you = record.players.find((p) => p.playerId === playerId)
@@ -386,6 +433,13 @@ export function computeFriends(history: GameRecord[], playerId: string): Friends
           losses: 0,
           yourAverageScore: 0,
           theirAverageScore: 0,
+          yourAveragePiecesLeft: 0,
+          theirAveragePiecesLeft: 0,
+          yourAverageSquaresLeft: 0,
+          theirAverageSquaresLeft: 0,
+          yourPerfectGames: 0,
+          theirPerfectGames: 0,
+          favoritePiece: null,
           meetings: [],
         } satisfies FriendStats)
 
@@ -400,6 +454,15 @@ export function computeFriends(history: GameRecord[], playerId: string): Friends
 
       friend.yourAverageScore += you.score
       friend.theirAverageScore += them.score
+      // Running totals; divided through by the game count at the end.
+      friend.yourAveragePiecesLeft += you.piecesLeft.length
+      friend.theirAveragePiecesLeft += them.piecesLeft.length
+      friend.yourAverageSquaresLeft += you.remainingSquares
+      friend.theirAverageSquaresLeft += them.remainingSquares
+      if (you.perfectGame) friend.yourPerfectGames++
+      if (them.perfectGame) friend.theirPerfectGames++
+
+      countPieces(pieceCountsFor(them.playerId), you, them)
       friend.meetings.push({
         id: record.id,
         finishedAt: record.finishedAt,
@@ -415,11 +478,24 @@ export function computeFriends(history: GameRecord[], playerId: string): Friends
     }
   }
 
-  const friends = [...byPlayer.values()].map((friend) => ({
-    ...friend,
-    yourAverageScore: friend.yourAverageScore / friend.games,
-    theirAverageScore: friend.theirAverageScore / friend.games,
-  }))
+  const friends = [...byPlayer.values()].map((friend) => {
+    const counts = pieceCountsFor(friend.playerId)
+    return {
+      ...friend,
+      yourAverageScore: friend.yourAverageScore / friend.games,
+      theirAverageScore: friend.theirAverageScore / friend.games,
+      yourAveragePiecesLeft: friend.yourAveragePiecesLeft / friend.games,
+      theirAveragePiecesLeft: friend.theirAveragePiecesLeft / friend.games,
+      yourAverageSquaresLeft: friend.yourAverageSquaresLeft / friend.games,
+      theirAverageSquaresLeft: friend.theirAverageSquaresLeft / friend.games,
+      // One opponent seat per game — theirs — so the rate this compares against
+      // is what they played, not what the table as a whole played.
+      favoritePiece:
+        friend.games >= MIN_GAMES_FOR_FAVORITES
+          ? favoritePieceFrom(friend.games, friend.games, counts.yours, counts.theirs)
+          : null,
+    }
+  })
 
   // Most recently played first: who you are in the middle of a run with is more
   // use than who you have played most since the beginning of time.

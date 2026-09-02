@@ -50,6 +50,7 @@ The full intent, so it isn't only in someone's head:
 | Stats screen | Done — solo games only; per-friend records need online play |
 | Online play against friends | Done — one, two or three friends, async |
 | Friends page | Done — add by name, cards with photo, turn and record |
+| Stopping a game early | Done — proposed on the board, needs everyone's yes |
 | Profile photos | Done — cropped and shrunk onto the profile itself |
 
 ## Rules as implemented
@@ -99,6 +100,7 @@ src/
   pin.ts         Hashing and checking the four digits, and what that is worth
   palette.ts     The seven colour sets, and naming a colour picked by hand
   colors.ts      The palette in use, as a context so a change repaints
+  gamePalette.ts Which colours each online game is pinned to, on this device
   signIn.ts      Claiming, adopting and renaming
   sync.ts        Pushing finished games up to your account
   turnClock.ts   The two budgets a timed turn is made of
@@ -169,6 +171,29 @@ The record on the card is spelled out — "Won 4 · Lost 2" — rather than writ
 as 4–2. Which number is whose is not obvious in text that small, and reading it
 backwards is the one way that stat can actively mislead.
 
+### Stopping a game early
+
+A game against friends can be stopped and restarted, but only by agreement. The
+**New game** button on the board proposes it; everyone else still playing has to
+say yes, and anyone may wave it away — including whoever asked, since changing
+your mind is the ordinary case. A game somebody is winning must not end because
+the person losing it wanted a fresh start.
+
+The proposal shows up in two places, because there are no push notifications: a
+bar across the top of the board when they open the game, and **Wants a rematch**
+on their card, which sorts above even a move they owe — a turn only holds up
+their own game, while an unanswered question holds up the person who asked.
+
+Once everyone agrees, whoever ends it goes straight to the setup screen with the
+same people filled in, so the next game can be set up differently. The stopped
+game is marked `abandoned` as well as `finished`, and the difference matters:
+an abandoned game has no result, so it is never recorded and never scored, and
+it shows as *Ended early* rather than with a scoreboard. `abandoned` is also the
+only one of the two flags the board believes — `finished` is a hint the list may
+trust so it doesn't replay every old game, and a wrong one must never be able to
+make a live game unplayable. There is nothing in an abandoned position to
+re-derive it from, so that one has to be taken at its word.
+
 ### Profile photos
 
 Setting up is three steps, in this order: the name, the PIN, then the photo.
@@ -218,11 +243,21 @@ picker. A hand-painted seat sits on top of whichever set is chosen, which is why
 switching sets may not appear to change all four; the screen says so, and offers
 to undo them.
 
-**None of it touches a game.** The seats are blue, yellow, red and green
-underneath whatever they are drawn in, so a palette can be changed mid-game, and
-two people in the same online game can be looking at entirely different colours
-without disagreeing about anything that matters. It is a setting on the device,
-not a property of the game.
+**None of it touches the game itself.** The seats are blue, yellow, red and
+green underneath whatever they are drawn in, so two people in the same online
+game can be looking at entirely different colours without disagreeing about
+anything that matters. Paint is a fact about a device, not about a game.
+
+**But a game keeps the colours it started in.** What is picked on a setup screen
+applies to the game about to be played and to the menus, and leaves every game
+already under way alone. Repainting used to reach into all of them at once,
+which is worst online: the seat you painted is somebody else's, so your hand-
+picked colour landed on the wrong person in a game you were in the middle of.
+A solo game carries its choice on the session; an online game is pinned on this
+device the first time it is opened, since a colour scheme has no business
+travelling to anyone else. Games from before this fall back to whatever is
+currently set, so a board that has always been blue does not suddenly stop
+being.
 
 The names travel with the paint. "Blue's turn" is a lie once blue is drawn
 violet, and the seat name is the one thing a player cannot check against the

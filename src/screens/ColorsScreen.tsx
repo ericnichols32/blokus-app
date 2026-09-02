@@ -46,6 +46,18 @@ export function ColorsScreen({ settings, onChange, onClose, yourColor }: ColorsS
           ‹
         </button>
         <h1>Colors</h1>
+        {/* The back arrow does the same thing — every change here is already
+            saved as it is made. A tick says "that's what I wanted" in a way a
+            back arrow never quite does, which is the whole reason it's here. */}
+        <button
+          type="button"
+          className="icon-btn done"
+          onClick={onClose}
+          aria-label="Done"
+          title="Done"
+        >
+          ✓
+        </button>
       </header>
 
       {yourColor && (

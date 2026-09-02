@@ -103,7 +103,7 @@ export function StatsScreen({
             <h2>Record</h2>
             <div className="tiles">
               <Tile value={stats.games} label={stats.games === 1 ? 'Game played' : 'Games played'} />
-              <Tile value={stats.wins} label="Won" sub={percent(stats.wins, stats.games)} accent />
+              <Tile value={stats.wins} label="Won" sub={percent(stats.wins, stats.games)} />
               <Tile value={stats.draws} label="Drawn" />
               <Tile value={stats.losses} label="Lost" />
             </div>
@@ -151,17 +151,11 @@ export function StatsScreen({
                 <li key={tally.color}>
                   <span className="dot" style={{ background: palette[tally.color].hex }} />
                   <span className="color-name">{palette[tally.color].name}</span>
+                  {/* Just the count. A win rate per colour reads as though the
+                      colour caused it, and on a handful of games it is noise
+                      dressed up as a finding. */}
                   <span className="color-count">
-                    {tally.won} of {tally.played} won
-                  </span>
-                  <span className="bar" aria-hidden="true">
-                    <span
-                      className="bar-fill"
-                      style={{
-                        width: percent(tally.won, tally.played),
-                        background: palette[tally.color].hex,
-                      }}
-                    />
+                    {tally.played} {tally.played === 1 ? 'game' : 'games'}
                   </span>
                 </li>
               ))}

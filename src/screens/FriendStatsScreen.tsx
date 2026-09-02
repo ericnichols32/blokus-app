@@ -1,5 +1,7 @@
 import { usePalette } from '../colors'
-import { computeFriends } from '../stats'
+import { PieceIcon } from '../components/PieceIcon'
+import { PIECE_BY_ID } from '../game'
+import { computeFriends, MIN_GAMES_FOR_FAVORITES } from '../stats'
 import type { FriendMeeting, FriendStats } from '../stats'
 import type { GameRecord } from '../history'
 import './FriendStatsScreen.css'
@@ -64,31 +66,79 @@ export function FriendStatsScreen({
       </header>
 
       <section>
-        <h2>Head to head</h2>
-        <div className="head-to-head">
-          <Figure value={friend.wins} label="You" accent={friend.wins > friend.losses} />
-          <Figure value={friend.draws} label="Level" />
-          <Figure value={friend.losses} label="Them" accent={friend.losses > friend.wins} />
-        </div>
+        <h2>Side by side</h2>
+        {/* Every figure paired rather than listed for you alone: on somebody
+            else's page an average means nothing without theirs beside it. */}
+        <table className="compare">
+          <thead>
+            <tr>
+              <th scope="col" />
+              <th scope="col">You</th>
+              <th scope="col">@{friend.username}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* One number, not the same number twice: you have played each
+                other exactly as often as each other. */}
+            <tr>
+              <th scope="row">Games together</th>
+              <td colSpan={2}>{friend.games}</td>
+            </tr>
+            <CompareRow label="Won" yours={friend.wins} theirs={friend.losses} />
+            <CompareRow label="Level" yours={friend.draws} theirs={friend.draws} />
+            <CompareRow label="Lost" yours={friend.losses} theirs={friend.wins} />
+            <CompareRow
+              label="Average score"
+              yours={friend.yourAverageScore.toFixed(1)}
+              theirs={friend.theirAverageScore.toFixed(1)}
+            />
+            <CompareRow
+              label="Avg pieces left"
+              yours={friend.yourAveragePiecesLeft.toFixed(1)}
+              theirs={friend.theirAveragePiecesLeft.toFixed(1)}
+            />
+            <CompareRow
+              label="Avg squares left"
+              yours={friend.yourAverageSquaresLeft.toFixed(1)}
+              theirs={friend.theirAverageSquaresLeft.toFixed(1)}
+            />
+            <CompareRow
+              label="Perfect games"
+              yours={friend.yourPerfectGames}
+              theirs={friend.theirPerfectGames}
+            />
+          </tbody>
+        </table>
         <p className="note">
-          {friend.games === 1
-            ? 'One game together.'
-            : `${friend.games} games together — counting who finished above whom, not who won the game.`}
+          Won, level and lost count who finished above whom, not who won the game — in a game with
+          other people in it those are different questions.
         </p>
       </section>
 
       <section>
-        <h2>Average score</h2>
-        <ul className="score-compare">
-          <li>
-            <span>You</span>
-            <strong>{friend.yourAverageScore.toFixed(1)}</strong>
-          </li>
-          <li>
-            <span>@{friend.username}</span>
-            <strong>{friend.theirAverageScore.toFixed(1)}</strong>
-          </li>
-        </ul>
+        <h2>Your piece against them</h2>
+        {friend.favoritePiece ? (
+          <div className="friend-piece">
+            <PieceIcon
+              cells={PIECE_BY_ID[friend.favoritePiece.pieceId].cells}
+              color={friend.meetings[0]?.yourColor ?? 'blue'}
+              cellSize={16}
+            />
+            <p className="note">
+              You get this one down in {friend.favoritePiece.yours} of your{' '}
+              {friend.games} games together
+              {/* The comparison is the whole point: everybody places the small
+                  pieces, so a plain count would name the same one for both of
+                  you. */}
+              {`, against their ${(friend.favoritePiece.theirRate * friend.games).toFixed(0)}.`}
+            </p>
+          </div>
+        ) : (
+          <p className="note">
+            Needs {MIN_GAMES_FOR_FAVORITES} games together to mean anything — you have{' '}
+            {friend.games}.
+          </p>
+        )}
       </section>
 
       <section>
@@ -120,12 +170,21 @@ export function FriendStatsScreen({
   )
 }
 
-function Figure({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
+function CompareRow({
+  label,
+  yours,
+  theirs,
+}: {
+  label: string
+  yours: number | string
+  theirs: number | string
+}) {
   return (
-    <div className={`figure ${accent ? 'accent' : ''}`}>
-      <span className="figure-value">{value}</span>
-      <span className="figure-label">{label}</span>
-    </div>
+    <tr>
+      <th scope="row">{label}</th>
+      <td>{yours}</td>
+      <td>{theirs}</td>
+    </tr>
   )
 }
 
@@ -146,7 +205,7 @@ export function FriendRow({
             {friend.games} {friend.games === 1 ? 'game' : 'games'} together
           </span>
         </span>
-        <span className="friend-record">
+        <span className="friend-tally">
           {friend.wins}–{friend.draws}–{friend.losses}
         </span>
       </button>

@@ -99,6 +99,24 @@ export interface OnlineControls {
   /** Why the last attempt failed, if it did. */
   error: string | null
   submit: (move: { pieceId: PieceId; cells: Point[] }) => void
+  /** Stopping this game early, which online takes everyone's agreement. */
+  rematch: RematchControls
+}
+
+export interface RematchControls {
+  /** Whether somebody has asked to stop. */
+  pending: boolean
+  /** Whether you are one of the people who has yet to answer. */
+  awaitingYou: boolean
+  /** Whether everyone still in the game has said yes. */
+  agreed: boolean
+  /** Who asked, or null when it was you. */
+  askedBy: string | null
+  propose: () => void
+  accept: () => void
+  decline: () => void
+  /** Ends it and goes on to set the next game up. */
+  start: () => void
 }
 
 interface GameScreenProps {
@@ -108,7 +126,7 @@ interface GameScreenProps {
   onExit: () => void
   onPlayAgain: () => void
   /**
-   * Abandon this game and set up a fresh one.
+   * Abandon this game and set up a fresh one, behind a confirm.
    *
    * Only given for a solo game, and this is the only route to one: the home
    * screen resumes a solo game in progress rather than offering a choice, so
@@ -136,8 +154,8 @@ export function GameScreen({
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
   const [clock, setClock] = useState<ClockState | null>(null)
-  /** The back-arrow menu: shut, open, or asking before it throws a game away. */
-  const [menu, setMenu] = useState<'shut' | 'open' | 'confirm'>('shut')
+  /** Whether the "end this game?" question is up. */
+  const [menu, setMenu] = useState<'shut' | 'confirm'>('shut')
   // Bumped by the ticker purely to re-read the wall clock; the countdown is
   // derived, so nothing but the displayed number depends on this.
   const [, tick] = useState(0)
@@ -159,6 +177,14 @@ export function GameScreen({
    * moment the second one lands.
    */
   const pointers = useRef(new Map<number, { x: number; y: number }>())
+  /**
+   * A one-finger push of a zoomed board, or null when nothing is being pushed.
+   *
+   * Only ever set when there is no piece in hand: with one selected, pressing
+   * the board picks that piece up, and that gesture has to keep winning — it is
+   * the whole way a move is made.
+   */
+  const panStart = useRef<{ pointerId: number; x: number; y: number; zoom: Zoom } | null>(null)
   const pinchStart = useRef<{ distance: number; mid: { x: number; y: number }; zoom: Zoom } | null>(
     null,
   )
@@ -468,7 +494,22 @@ export function GameScreen({
     if (pointers.current.size >= 2) {
       dragPointerId.current = null
       setDragPointerPos(null)
+      panStart.current = null
       beginPinch()
+      return
+    }
+
+    /*
+     * A zoomed board can be pushed around with one finger.
+     *
+     * Only when there is nothing in hand, which is the case that was previously
+     * dead: pressing the board with no piece selected did nothing at all, and
+     * reaching a far corner meant holding a pinch you didn't want to change.
+     * With a piece selected the press still picks it up.
+     */
+    if (zoom.scale > 1 && (isComputerTurn || !selectedPieceId)) {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      panStart.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, zoom }
       return
     }
 
@@ -485,6 +526,25 @@ export function GameScreen({
       return
     }
 
+    const pan = panStart.current
+    if (pan && e.pointerId === pan.pointerId) {
+      const size = boardRef.current?.getBoundingClientRect().width
+      if (!size) return
+      setZoom(
+        clampZoom(
+          {
+            scale: pan.zoom.scale,
+            x: pan.zoom.x + (e.clientX - pan.x),
+            y: pan.zoom.y + (e.clientY - pan.y),
+          },
+          // As in the pinch: the frame's own footprint, not the scaled board's,
+          // because the clamp is written in terms of how far it may hang off.
+          size / pan.zoom.scale,
+        ),
+      )
+      return
+    }
+
     if (e.pointerId !== dragPointerId.current) return
     setDragPointerPos({ x: e.clientX, y: e.clientY })
     updateAnchorFromPoint(e.clientX, e.clientY, dragCells.current)
@@ -492,6 +552,7 @@ export function GameScreen({
 
   function handleDragEnd(e: React.PointerEvent<Element>) {
     pointers.current.delete(e.pointerId)
+    if (panStart.current?.pointerId === e.pointerId) panStart.current = null
     if (pointers.current.size < 2) {
       pinchStart.current = null
       // Let all the way out and it goes back square, rather than resting a
@@ -615,6 +676,28 @@ export function GameScreen({
     )
   }
 
+  /**
+   * What the New game button does on this board.
+   *
+   * Solo it ends the game outright — nobody else is in it. Online it can only
+   * ask, and only while nothing is already being asked: a second proposal on
+   * top of a standing one has nothing to add.
+   */
+  const rematch = online?.rematch
+  const newGame = onNewGame
+    ? {
+        ask: 'End this game and start a new game?',
+        confirm: 'Yes, new game',
+        run: onNewGame,
+      }
+    : rematch && !rematch.pending
+      ? {
+          ask: 'Propose ending this game and starting a new one? Everyone playing has to agree.',
+          confirm: 'Propose it',
+          run: rematch.propose,
+        }
+      : null
+
   const hasSelection = selectedPieceId !== null
   // Online you can look at any board but only play your own turn, and only one
   // move at a time — `busy` covers the gap while a turn is being written.
@@ -638,14 +721,7 @@ export function GameScreen({
       style={{ '--extra-chrome': settings.showLiveScores ? '46px' : '0px' } as React.CSSProperties}
     >
       <header className="status-bar">
-        <button
-          type="button"
-          className="icon-btn"
-          // Online there is nothing to choose between: leaving goes back to your
-          // friends, and a new game is started from one of their cards.
-          onClick={() => (onNewGame ? setMenu('open') : onExit())}
-          aria-label={onNewGame ? 'Menu' : 'Back to menu'}
-        >
+        <button type="button" className="icon-btn" onClick={onExit} aria-label="Back to menu">
           ‹
         </button>
         <span className="dot" style={{ background: palette[currentPlayer.color].hex }} />
@@ -680,6 +756,15 @@ export function GameScreen({
           </span>
         )}
 
+        {/* Beside the board-turn button rather than behind the back arrow: the
+            back arrow means "leave this alone and go", and hiding "throw this
+            game away" inside it made an ordinary exit into a decision. */}
+        {newGame && (
+          <button type="button" className="btn new-game" onClick={() => setMenu('confirm')}>
+            New game
+          </button>
+        )}
+
         {/* Up here rather than in the row below, which holds Rotate and Flip for
             the piece in hand — two controls both called "rotate", one turning the
             piece and one the whole board, is the confusion worth avoiding. */}
@@ -698,6 +783,41 @@ export function GameScreen({
         <p className="turn-error" role="alert">
           {online.error}
         </p>
+      )}
+
+      {rematch?.pending && (
+        <div className="rematch-bar">
+          <span className="rematch-text">
+            {rematch.agreed
+              ? 'Everyone agreed to stop here.'
+              : rematch.awaitingYou
+                ? `@${rematch.askedBy ?? 'someone'} wants to stop this game and start a new one.`
+                : 'Waiting for everyone else to agree.'}
+          </span>
+          <span className="rematch-actions">
+            {rematch.agreed ? (
+              <button type="button" className="btn primary" onClick={rematch.start}>
+                Start the new game
+              </button>
+            ) : rematch.awaitingYou ? (
+              <>
+                <button type="button" className="btn primary" onClick={rematch.accept}>
+                  Agree
+                </button>
+                <button type="button" className="btn" onClick={rematch.decline}>
+                  Keep playing
+                </button>
+              </>
+            ) : (
+              /* Whoever asked can change their mind, which is the ordinary
+                 case — and without this a proposal nobody answers would sit on
+                 the board for the rest of the game. */
+              <button type="button" className="btn" onClick={rematch.decline}>
+                Cancel
+              </button>
+            )}
+          </span>
+        </div>
       )}
 
       {settings.showLiveScores && <ScoreStrip session={session} />}
@@ -779,35 +899,25 @@ export function GameScreen({
         onDragEnd={handleDragEnd}
       />
 
-      {menu !== 'shut' && onNewGame && (
+      {menu === 'confirm' && newGame && (
         <div className="board-menu-backdrop" onClick={() => setMenu('shut')}>
           <div className="board-menu" onClick={(event) => event.stopPropagation()}>
-            {menu === 'open' ? (
-              <>
-                <button type="button" className="btn tall" onClick={onExit}>
-                  <span>Back to menu</span>
-                  <span className="sub">This game keeps waiting for you</span>
-                </button>
-                <button type="button" className="btn tall" onClick={() => setMenu('confirm')}>
-                  <span>Start a new game</span>
-                  <span className="sub">Pick a colour and a clock again</span>
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Asked plainly, because there is no undo: the board is kept in
-                    one place and starting another overwrites it. */}
-                <p className="board-menu-ask">
-                  Start a new game? This board is replaced, and it can't be got back.
-                </p>
-                <button type="button" className="btn primary" onClick={onNewGame}>
-                  Yes, new game
-                </button>
-                <button type="button" className="btn quiet" onClick={() => setMenu('open')}>
-                  Keep playing this one
-                </button>
-              </>
-            )}
+            {/* Asked plainly, because solo there is no undo — one board is kept
+                at a time — and online it is about to interrupt somebody else. */}
+            <p className="board-menu-ask">{newGame.ask}</p>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                setMenu('shut')
+                newGame.run()
+              }}
+            >
+              {newGame.confirm}
+            </button>
+            <button type="button" className="btn quiet" onClick={() => setMenu('shut')}>
+              Keep playing this one
+            </button>
           </div>
         </div>
       )}

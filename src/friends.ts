@@ -3,7 +3,7 @@ import type { Account } from './account'
 import { getBackend } from './backend'
 import type { PlayerProfile } from './backend'
 import type { GameRecord } from './history'
-import { listEntry, opponentsOf } from './online'
+import { listEntry, opponentsOf, rematchAwaits } from './online'
 import type { ListEntry, OnlineGame } from './online'
 import { OnlineError } from './onlineActions'
 import { computeFriends } from './stats'
@@ -68,10 +68,14 @@ export interface FriendsView {
  * Sorts the cards into the order the question "what can I do right now?" wants
  * answering in: your turn, then theirs, then people you have no game with.
  */
-function cardRank(card: FriendCard): number {
-  if (card.games.some((g) => g.yourTurn)) return 0
-  if (card.games.length > 0) return 1
-  return 2
+function cardRank(card: FriendCard, playerId: string): number {
+  // A question addressed to you comes above a move you owe. A turn only holds
+  // up your own game; an unanswered proposal holds up the person who asked,
+  // who can neither play on nor start again until you say something.
+  if (card.games.some((g) => rematchAwaits(g.game, playerId))) return 0
+  if (card.games.some((g) => g.yourTurn)) return 1
+  if (card.games.length > 0) return 2
+  return 3
 }
 
 /** When anything last happened with this person, for ordering inside a rank. */
@@ -127,7 +131,7 @@ export function buildFriendsView(
 
   friends.sort(
     (a, b) =>
-      cardRank(a) - cardRank(b) ||
+      cardRank(a, playerId) - cardRank(b, playerId) ||
       lastActivity(b).localeCompare(lastActivity(a)) ||
       a.username.localeCompare(b.username),
   )
@@ -136,7 +140,9 @@ export function buildFriendsView(
     friends,
     groupGames,
     finished,
-    waitingOnYou: live.filter((e) => e.yourTurn).length,
+    // A standing proposal counts: it is waiting on you as surely as a move is,
+    // and it is the one thing nobody else in the game can get past.
+    waitingOnYou: live.filter((e) => e.yourTurn || rematchAwaits(e.game, playerId)).length,
     liveGames: live.length,
   }
 }

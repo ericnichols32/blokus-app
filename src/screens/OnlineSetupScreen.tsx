@@ -12,10 +12,10 @@ interface OnlineSetupScreenProps {
   account: Account
   settings: Settings
   /**
-   * Somebody's name, already typed in — a game started from their card on the
-   * friends page has already said who it is against.
+   * Names already typed in — one from a friend's card, or everybody from a game
+   * that has just been stopped by agreement, which is being set up again.
    */
-  initialFriend?: string
+  initialFriends?: string[]
   /** No seat to pass: colours are dealt when the game is made. */
   onEditColors: () => void
   onStarted: (gameId: string) => void
@@ -38,14 +38,18 @@ const FILL_BLURB: Record<SeatFill, string> = {
 export function OnlineSetupScreen({
   account,
   settings,
-  initialFriend,
+  initialFriends,
   onEditColors,
   onStarted,
   onCancel,
 }: OnlineSetupScreenProps) {
   const palette = usePalette()
-  const [friendCount, setFriendCount] = useState(1)
-  const [names, setNames] = useState<string[]>([initialFriend ?? '', '', ''])
+  // The people carried in decide how many seats the form opens on, so a game
+  // being set up again doesn't quietly drop two of the three people in it.
+  const [friendCount, setFriendCount] = useState(Math.min(initialFriends?.length || 1, 3))
+  const [names, setNames] = useState<string[]>(() =>
+    [...(initialFriends ?? []), '', '', ''].slice(0, 3),
+  )
   const [fill, setFill] = useState<SeatFill>('double')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

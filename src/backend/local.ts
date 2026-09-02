@@ -105,7 +105,7 @@ export function createLocalBackend(): Backend {
       return () => window.removeEventListener('storage', handler)
     },
 
-    async submitOnlineTurn(game, expectedMoveCount) {
+    async writeOnlineGame(game, expectedMoveCount) {
       const games = readOnline()
       const stored = games.find((g) => g.id === game.id)
       // Same check the real store makes, so the stale-game path is exercised by

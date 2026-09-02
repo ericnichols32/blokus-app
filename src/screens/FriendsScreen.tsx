@@ -5,6 +5,7 @@ import { isOnline } from '../backend'
 import type { FriendCard, FriendRecord } from '../friends'
 import { describePlayers, describeSetup } from '../onlineActions'
 import { OnlineError } from '../onlineActions'
+import { rematchAwaits } from '../online'
 import type { ListEntry } from '../online'
 import type { FriendsData } from '../useFriends'
 import type { Account } from '../account'
@@ -67,7 +68,7 @@ export function FriendsScreen({
     )
   }
 
-  const { view, loading, loaded, error } = friends
+  const { view, loaded, error } = friends
 
   function tapped(card: FriendCard) {
     if (card.games.length === 0) onNewGameWith(card.username)
@@ -84,16 +85,6 @@ export function FriendsScreen({
           ‹
         </button>
         <h1>Friends</h1>
-        <button
-          type="button"
-          className="icon-btn refresh"
-          onClick={friends.refresh}
-          disabled={loading}
-          aria-label="Check for moves"
-          title="Check for moves"
-        >
-          ⟳
-        </button>
       </header>
 
       {!isOnline() && (
@@ -117,12 +108,14 @@ export function FriendsScreen({
           <button
             key={entry.game.id}
             type="button"
-            className={`group-tile ${entry.yourTurn ? 'now' : ''}`}
+            className={`group-tile ${entry.yourTurn || rematchAwaits(entry.game, account.playerId) ? 'now' : ''}`}
             onClick={() => onOpenGame(entry.game.id)}
           >
             <span className="group-main">
               <span className="group-who">{describePlayers(entry.game, account.playerId)}</span>
-              <span className="group-detail">{entry.status}</span>
+              <span className="group-detail">
+                {rematchAwaits(entry.game, account.playerId) ? 'Wants a rematch' : entry.status}
+              </span>
             </span>
             <span className="group-go" aria-hidden="true">
               ›
@@ -143,7 +136,12 @@ export function FriendsScreen({
 
       <div className="friend-grid">
         {view.friends.map((card) => (
-          <FriendTile key={card.playerId} card={card} onClick={() => tapped(card)} />
+          <FriendTile
+            key={card.playerId}
+            card={card}
+            playerId={account.playerId}
+            onClick={() => tapped(card)}
+          />
         ))}
 
         <button type="button" className="friend-tile add" onClick={() => setManaging(true)}>
@@ -188,9 +186,12 @@ export function FriendsScreen({
 }
 
 /** What the card says to do next, in the fewest words that are still true. */
-function actionFor(card: FriendCard): { label: string; tone: string } {
+function actionFor(card: FriendCard, playerId: string): { label: string; tone: string } {
   const next = card.games[0]
   if (!next) return { label: 'Play', tone: 'idle' }
+  // Ahead of whose turn it is: a question addressed to you outranks a move, and
+  // it is the only thing on this page that will sit unanswered otherwise.
+  if (rematchAwaits(next.game, playerId)) return { label: 'Wants a rematch', tone: 'now' }
   if (next.yourTurn) return { label: 'Your turn', tone: 'now' }
   // Only ever seen in the gap before whoever moved last writes the computer's
   // replies, but "their turn" would be a lie about a seat nobody is holding.
@@ -211,8 +212,16 @@ function recordLine(record: FriendRecord | null): string {
   return parts.join(' · ')
 }
 
-function FriendTile({ card, onClick }: { card: FriendCard; onClick: () => void }) {
-  const action = actionFor(card)
+function FriendTile({
+  card,
+  playerId,
+  onClick,
+}: {
+  card: FriendCard
+  playerId: string
+  onClick: () => void
+}) {
+  const action = actionFor(card, playerId)
 
   return (
     <button type="button" className={`friend-tile ${action.tone}`} onClick={onClick}>

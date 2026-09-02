@@ -171,7 +171,7 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
       }
     },
 
-    async submitOnlineTurn(game, expectedMoveCount) {
+    async writeOnlineGame(game, expectedMoveCount) {
       const { db, fs } = await connect(config)
       const ref = fs.doc(db, 'onlineGames', game.id)
 

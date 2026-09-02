@@ -362,15 +362,19 @@ describe('per-friend records', () => {
     /** playerId → rank. Yours is 'me'. */
     ranks: Record<string, number>
     scores?: Record<string, number>
+    /** playerId → the pieces they never got down. */
+    piecesLeft?: Record<string, PieceId[]>
+    squaresLeft?: Record<string, number>
+    perfect?: string[]
   }): GameRecord {
     const ids = Object.keys(options.ranks)
     const players: GameRecordPlayer[] = ids.map((id, i) => ({
       color: COLORS[i],
       seat: 'human',
       score: options.scores?.[id] ?? -options.ranks[id],
-      remainingSquares: 0,
-      piecesLeft: [],
-      perfectGame: false,
+      remainingSquares: options.squaresLeft?.[id] ?? 0,
+      piecesLeft: options.piecesLeft?.[id] ?? [],
+      perfectGame: options.perfect?.includes(id) ?? false,
       rank: options.ranks[id],
       playerId: id,
       username: id,
@@ -386,6 +390,82 @@ describe('per-friend records', () => {
       players,
     }
   }
+
+  it('averages what each of you was left holding', () => {
+    const games = [
+      online({
+        id: 'a',
+        ranks: { me: 1, dave: 2 },
+        piecesLeft: { me: ['monomino'], dave: ['monomino', 'domino', 'tromino-I'] },
+        squaresLeft: { me: 1, dave: 6 },
+      }),
+      online({
+        id: 'b',
+        ranks: { me: 2, dave: 1 },
+        piecesLeft: { me: ['monomino', 'domino'], dave: ['monomino'] },
+        squaresLeft: { me: 3, dave: 1 },
+      }),
+    ]
+
+    const dave = computeFriends(games, 'me').friends.find((f) => f.username === 'dave')!
+    expect(dave.yourAveragePiecesLeft).toBe(1.5)
+    expect(dave.theirAveragePiecesLeft).toBe(2)
+    expect(dave.yourAverageSquaresLeft).toBe(2)
+    expect(dave.theirAverageSquaresLeft).toBe(3.5)
+  })
+
+  it('counts perfect games on each side separately', () => {
+    const games = [
+      online({ id: 'a', ranks: { me: 1, dave: 2 }, perfect: ['me'] }),
+      online({ id: 'b', ranks: { me: 2, dave: 1 }, perfect: ['me', 'dave'] }),
+    ]
+
+    const dave = computeFriends(games, 'me').friends.find((f) => f.username === 'dave')!
+    expect(dave.yourPerfectGames).toBe(2)
+    expect(dave.theirPerfectGames).toBe(1)
+  })
+
+  it('names the piece you play more than they do, not the one you play most', () => {
+    // The monomino goes down for both of you every time, which is exactly why a
+    // plain count would name it. The piece that separates you is the one they
+    // keep failing to place.
+    const games = Array.from({ length: MIN_GAMES_FOR_FAVORITES }, (_, i) =>
+      online({
+        id: `g${i}`,
+        ranks: { me: 1, dave: 2 },
+        piecesLeft: { me: [], dave: ['pentomino-F'] },
+      }),
+    )
+
+    const dave = computeFriends(games, 'me').friends.find((f) => f.username === 'dave')!
+    expect(dave.favoritePiece?.pieceId).toBe('pentomino-F')
+  })
+
+  it('says nothing about a favourite piece until there are games behind it', () => {
+    const games = Array.from({ length: MIN_GAMES_FOR_FAVORITES - 1 }, (_, i) =>
+      online({ id: `g${i}`, ranks: { me: 1, dave: 2 }, piecesLeft: { me: [], dave: ['pentomino-F'] } }),
+    )
+
+    const dave = computeFriends(games, 'me').friends.find((f) => f.username === 'dave')!
+    expect(dave.favoritePiece).toBeNull()
+  })
+
+  it('keeps each friend\'s pieces apart from the next one\'s', () => {
+    // One tally per person: mixing them would let a piece you only ever play
+    // against dave turn up as your piece against sam.
+    const games = [
+      ...Array.from({ length: MIN_GAMES_FOR_FAVORITES }, (_, i) =>
+        online({ id: `d${i}`, ranks: { me: 1, dave: 2 }, piecesLeft: { me: [], dave: ['pentomino-F'] } }),
+      ),
+      ...Array.from({ length: MIN_GAMES_FOR_FAVORITES }, (_, i) =>
+        online({ id: `s${i}`, ranks: { me: 1, sam: 2 }, piecesLeft: { me: [], sam: ['tetromino-T'] } }),
+      ),
+    ]
+
+    const friends = computeFriends(games, 'me').friends
+    expect(friends.find((f) => f.username === 'dave')!.favoritePiece?.pieceId).toBe('pentomino-F')
+    expect(friends.find((f) => f.username === 'sam')!.favoritePiece?.pieceId).toBe('tetromino-T')
+  })
 
   it('counts finishing above them, which is not the same as winning', () => {
     // Second of four, but ahead of dave: a loss overall and a win against him.

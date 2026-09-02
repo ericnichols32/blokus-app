@@ -1,5 +1,6 @@
 import { BOARD_SIZE, COLORS, createGame, readStrength } from './game'
 import type { Color, GameState, Strength } from './game'
+import type { PaletteChoice } from './palette'
 
 /**
  * Lives here rather than alongside the history it serves, because history.ts
@@ -57,6 +58,15 @@ export interface Session {
    * halfway through it.
    */
   timed: boolean
+  /**
+   * The colours this game is painted in, taken when it started.
+   *
+   * Fixed at kick-off for the same reason `timed` is: repainting on the setup
+   * screen must change the game you are about to start, not the ones already
+   * under way. Absent on games saved before this existed, which fall back to
+   * whatever is currently set.
+   */
+  palette?: PaletteChoice
   state: GameState
 }
 
@@ -71,6 +81,7 @@ export function createSolo(
   strength: Strength,
   timed = false,
   firstColor?: Color,
+  palette?: PaletteChoice,
 ): Session {
   const seats = {} as Record<Color, Seat>
   for (const color of COLORS) {
@@ -82,6 +93,7 @@ export function createSolo(
     seats,
     youAre: playerColor,
     timed,
+    palette,
     state: createGame(COLORS, firstColor),
   }
 }
@@ -161,8 +173,57 @@ export function isResumable(session: Session): boolean {
   return !session.state.gameOver && session.state.placedPieces.length > 0
 }
 
-export function describeSession(session: Session): string {
-  const placed = session.state.placedPieces.length
-  const label = session.mode === 'online' ? 'Online game' : 'Solo game'
-  return `${label} · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
+/**
+ * Which round the game is in, counting from one.
+ *
+ * A round is everyone having had one turn, so it is the most pieces any single
+ * player has down — not the total placed, which counts four players' turns as
+ * four separate steps and means nothing to anyone reading it. Measured off the
+ * leader rather than off the total precisely because players pass out: once
+ * somebody is finished the total stops keeping pace with the game, while the
+ * people still playing carry on into new rounds.
+ *
+ * A game with nothing on the board is still in its first round — nobody has
+ * played it yet, but it is the round they are about to play.
+ */
+export function roundNumber(state: GameState): number {
+  const placed = state.players.map((p) => TOTAL_PIECES - p.remainingPieceIds.length)
+  return Math.max(1, ...placed)
+}
+
+/** How many pieces each colour starts with. */
+const TOTAL_PIECES = 21
+
+const ORDINALS = [
+  'first',
+  'second',
+  'third',
+  'fourth',
+  'fifth',
+  'sixth',
+  'seventh',
+  'eighth',
+  'ninth',
+  'tenth',
+  'eleventh',
+  'twelfth',
+  'thirteenth',
+  'fourteenth',
+  'fifteenth',
+  'sixteenth',
+  'seventeenth',
+  'eighteenth',
+  'nineteenth',
+  'twentieth',
+  'twenty-first',
+]
+
+/**
+ * "third round" — the words rather than the digits, because this is read inside
+ * a sentence rather than off a scoreboard. There are only ever twenty-one of
+ * them, since that is how many pieces a colour has.
+ */
+export function describeRound(state: GameState): string {
+  const round = roundNumber(state)
+  return `${ORDINALS[round - 1] ?? `round ${round}`} round`
 }

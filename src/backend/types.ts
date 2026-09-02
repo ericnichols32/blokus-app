@@ -63,15 +63,19 @@ export interface Backend {
   listOnlineGames(playerId: string): Promise<OnlineGame[]>
 
   /**
-   * Appends a turn to an online game.
+   * Writes a game back, refusing it if the game has moved on.
    *
    * `expectedMoveCount` is how many moves the caller believed were already
-   * played. The store must reject the write if the game has moved on since —
-   * two devices open on the same game is the normal case, not the exception, and
-   * a blind overwrite would silently erase somebody's turn. Throws
+   * played. The store must reject the write if that no longer matches — two
+   * devices open on the same game is the normal case, not the exception, and a
+   * blind overwrite would silently erase somebody's turn. Throws
    * `StaleGameError` in that case, and the caller re-reads and tries again.
+   *
+   * Used for a turn, and for the things that hang off a game without adding to
+   * it — a rematch proposed, agreed to or waved away. The check is the same
+   * either way: the caller is writing a whole document it read a moment ago.
    */
-  submitOnlineTurn(game: OnlineGame, expectedMoveCount: number): Promise<void>
+  writeOnlineGame(game: OnlineGame, expectedMoveCount: number): Promise<void>
 
   /**
    * Calls back whenever the stored game changes, and returns the way to stop.

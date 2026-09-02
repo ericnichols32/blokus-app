@@ -12,6 +12,8 @@ import { ColorsScreen } from './screens/ColorsScreen'
 import { FriendStatsScreen } from './screens/FriendStatsScreen'
 import { PaletteProvider } from './colors'
 import { resolvePalette } from './palette'
+import type { PaletteChoice } from './palette'
+import { gamePaletteFor, rememberGamePalette } from './gamePalette'
 import {
   clearSession,
   createSolo,
@@ -31,6 +33,10 @@ import { clearSyncState, syncAccount } from './sync'
 import {
   OnlineError,
   StaleTurnError,
+  agreeToRematch,
+  askForRematch,
+  endGameNow,
+  keepPlaying,
   recordIfFinished,
   refreshGame,
   sessionFor,
@@ -38,6 +44,7 @@ import {
   takeTurn,
   watchGame,
 } from './onlineActions'
+import { opponentsOf, rematchAgreed, rematchAwaits } from './online'
 import type { OnlineGame } from './online'
 import { useFriends } from './useFriends'
 import {
@@ -129,8 +136,11 @@ function Screens({ settings, setSettings }: ScreensProps) {
    */
   /** Where the colour editor was opened from, and for which seat. */
   const [openFriendId, setOpenFriendId] = useState<string | null>(null)
-  /** A friend's name carried into the new-game form from their card. */
-  const [invitee, setInvitee] = useState<string | undefined>(undefined)
+  /**
+   * Names carried into the new-game form — one from a friend's card, or
+   * everybody from a game that has just been stopped by agreement.
+   */
+  const [invitees, setInvitees] = useState<string[]>([])
   const [colorsFrom, setColorsFrom] = useState<Screen>('solo-setup')
   const [editingColor, setEditingColor] = useState<Color | undefined>(undefined)
 
@@ -142,6 +152,31 @@ function Screens({ settings, setSettings }: ScreensProps) {
   const [onlineGame, setOnlineGame] = useState<OnlineGame | null>(null)
   const [onlineBusy, setOnlineBusy] = useState(false)
   const [onlineError, setOnlineError] = useState<string | null>(null)
+
+  /**
+   * A game's own colours, or the current ones for a game that predates them
+   * being kept — a board that has always been blue should not suddenly not be.
+   */
+  function paletteArgs(choice: PaletteChoice | null | undefined): [string, PaletteChoice['colorOverrides']] {
+    const chosen = choice ?? { paletteId: settings.paletteId, colorOverrides: settings.colorOverrides }
+    return [chosen.paletteId, chosen.colorOverrides]
+  }
+
+  /** The colours currently set, as a value a game can keep a copy of. */
+  const chosenPalette: PaletteChoice = {
+    paletteId: settings.paletteId,
+    colorOverrides: settings.colorOverrides,
+  }
+
+  /*
+   * Read through a ref by the callbacks below rather than taken as a
+   * dependency: they would otherwise be rebuilt every time the colours changed,
+   * and the game watcher keyed on one of them would be torn down and rebuilt
+   * with it — a dropped listener in the middle of somebody's game, to pick up a
+   * value only read when a game is first opened.
+   */
+  const paletteRef = useRef(chosenPalette)
+  paletteRef.current = chosenPalette
 
   const handleStateChange = useCallback((state: GameState) => {
     setSession((current) => (current ? { ...current, state } : current))
@@ -167,6 +202,9 @@ function Screens({ settings, setSettings }: ScreensProps) {
         const game = await refreshGame(gameId)
         setOnlineGame(game)
         bankOnlineGame(game)
+        // Once, on first open: from then on this game keeps the colours it was
+        // first seen in, whatever gets picked afterwards for a different game.
+        rememberGamePalette(gameId, paletteRef.current)
       } catch (e) {
         setOnlineGame(null)
         setOnlineError(e instanceof OnlineError ? e.message : "Couldn't open that game.")
@@ -222,6 +260,35 @@ function Screens({ settings, setSettings }: ScreensProps) {
     [onlineGame, account, bankOnlineGame],
   )
 
+  /**
+   * Runs one of the rematch writes against the open game.
+   *
+   * They all have the same shape — take the game on screen, write a changed
+   * copy, and either show what came back or say why it was refused — so they
+   * share one path rather than four near-identical ones.
+   */
+  const changeRematch = useCallback(
+    async (change: (game: OnlineGame) => Promise<OnlineGame>) => {
+      if (!onlineGame) return null
+      setOnlineBusy(true)
+      setOnlineError(null)
+      try {
+        const written = await change(onlineGame)
+        setOnlineGame(written)
+        return written
+      } catch (e) {
+        // A refusal brings the game that won with it, so the screen ends up
+        // showing what actually happened rather than what was attempted.
+        if (e instanceof StaleTurnError && e.latest) setOnlineGame(e.latest)
+        setOnlineError(e instanceof OnlineError ? e.message : "Couldn't save that. Try again.")
+        return null
+      } finally {
+        setOnlineBusy(false)
+      }
+    },
+    [onlineGame],
+  )
+
   /*
    * Reopen the game a reload landed back on. Runs once: initialScreen only
    * chooses 'online-game' when an id was remembered, and a ref rather than a
@@ -237,7 +304,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
   }, [screen, onlineGame, openOnlineGame])
 
   function startSolo(color: Color, timed: boolean, firstColor: Color) {
-    setSession(createSolo(color, settings.strength, timed, firstColor))
+    setSession(createSolo(color, settings.strength, timed, firstColor, chosenPalette))
     setScreen('game')
   }
 
@@ -253,7 +320,13 @@ function Screens({ settings, setSettings }: ScreensProps) {
 
     // A fresh draw for who opens, the same as any other new game — carrying the
     // last one over would hand the same player the advantage every round.
-    if (humanColor) setSession(createSolo(humanColor, strength, session.timed, drawFirstColor()))
+    // The rematch keeps the colours of the game it follows, so a run of games
+    // doesn't change colour halfway through.
+    if (humanColor) {
+      setSession(
+        createSolo(humanColor, strength, session.timed, drawFirstColor(), session.palette),
+      )
+    }
   }
 
   /**
@@ -267,6 +340,23 @@ function Screens({ settings, setSettings }: ScreensProps) {
     setAccount(next)
     saveAccount(next)
     markPrompted()
+  }
+
+  /**
+   * Ends a game everyone has agreed to stop, and goes on to set the next one
+   * up with the same people.
+   *
+   * The setup screen rather than an immediate rematch: the whole point of
+   * stopping was usually that something about the game wasn't right, so this is
+   * the moment to change it.
+   */
+  async function startNextGame(game: OnlineGame) {
+    if (!account) return
+    const written = await changeRematch(endGameNow)
+    if (!written) return
+
+    setInvitees(opponentsOf(game, account.playerId).map((o) => o.username))
+    setScreen('online-setup')
   }
 
   function signedIn(next: Account) {
@@ -306,14 +396,18 @@ function Screens({ settings, setSettings }: ScreensProps) {
 
   if (screen === 'game' && session) {
     return (
-      <GameScreen
-        session={session}
-        settings={settings}
-        onStateChange={handleStateChange}
-        onExit={() => setScreen('home')}
-        onPlayAgain={playAgain}
-        onNewGame={() => setScreen('solo-setup')}
-      />
+      /* A nested provider, so the board and everything in it is painted in the
+         colours this game started in while the menus keep the current ones. */
+      <PaletteProvider value={resolvePalette(...paletteArgs(session.palette))}>
+        <GameScreen
+          session={session}
+          settings={settings}
+          onStateChange={handleStateChange}
+          onExit={() => setScreen('home')}
+          onPlayAgain={playAgain}
+          onNewGame={() => setScreen('solo-setup')}
+        />
+      </PaletteProvider>
     )
   }
 
@@ -350,11 +444,11 @@ function Screens({ settings, setSettings }: ScreensProps) {
         friends={friends}
         onOpenGame={(id) => void openOnlineGame(id)}
         onNewGameWith={(username) => {
-          setInvitee(username)
+          setInvitees([username])
           setScreen('online-setup')
         }}
         onNewGroupGame={() => {
-          setInvitee(undefined)
+          setInvitees([])
           setScreen('online-setup')
         }}
         onPastGames={() => setScreen('past-games')}
@@ -381,7 +475,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
       <OnlineSetupScreen
         account={account}
         settings={settings}
-        initialFriend={invitee}
+        initialFriends={invitees}
         onEditColors={() => {
           // No seat yet: the colours are dealt when the game is made, so only
           // the whole-set half of that screen has anything to act on.
@@ -421,25 +515,46 @@ function Screens({ settings, setSettings }: ScreensProps) {
 
     const view = summarize(onlineGame, account.playerId)
     return (
-      <GameScreen
-        session={sessionFor(onlineGame, account.playerId)}
-        settings={settings}
-        onStateChange={handleStateChange}
-        onExit={() => {
-          setScreen('friends')
-          // A turn was almost certainly just played, so the page behind this one
-          // is already out of date by the time it comes back.
-          friends.refresh()
-        }}
-        onPlayAgain={playAgain}
-        online={{
-          yourTurn: view.yourTurn,
-          status: view.status,
-          busy: onlineBusy,
-          error: onlineError,
-          submit: (move) => void submitOnlineMove(move),
-        }}
-      />
+      /* Same as the solo board: the colours this game was first opened in,
+         whatever has been picked since for a different one. */
+      <PaletteProvider value={resolvePalette(...paletteArgs(gamePaletteFor(onlineGame.id)))}>
+        <GameScreen
+          session={sessionFor(onlineGame, account.playerId)}
+          settings={settings}
+          onStateChange={handleStateChange}
+          onExit={() => {
+            setScreen('friends')
+            // A turn was almost certainly just played, so the page behind this
+            // one is already out of date by the time it comes back.
+            friends.refresh()
+          }}
+            onPlayAgain={playAgain}
+          online={{
+            yourTurn: view.yourTurn,
+            status: view.status,
+            busy: onlineBusy,
+            error: onlineError,
+            submit: (move) => void submitOnlineMove(move),
+            rematch: {
+              pending: !!onlineGame.rematch,
+              awaitingYou: rematchAwaits(onlineGame, account.playerId),
+              agreed: rematchAgreed(onlineGame),
+              askedBy:
+                onlineGame.rematch && onlineGame.rematch.proposedBy !== account.playerId
+                  ? (opponentsOf(onlineGame, account.playerId).find(
+                      (o) => o.playerId === onlineGame.rematch?.proposedBy,
+                    )?.username ?? null)
+                  : null,
+              propose: () =>
+                void changeRematch((game) => askForRematch(game, account.playerId)),
+              accept: () =>
+                void changeRematch((game) => agreeToRematch(game, account.playerId)),
+              decline: () => void changeRematch(keepPlaying),
+              start: () => void startNextGame(onlineGame),
+            },
+          }}
+        />
+      </PaletteProvider>
     )
   }
 

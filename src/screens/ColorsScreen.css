@@ -127,3 +127,11 @@
   gap: 10px;
   font-size: 15px;
 }
+
+/* Opposite the back arrow, where a confirm belongs. */
+.icon-btn.done {
+  margin-left: auto;
+  border-color: #2563eb;
+  background: #2563eb;
+  font-size: 17px;
+}

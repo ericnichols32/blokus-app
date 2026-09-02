@@ -120,6 +120,21 @@ export function paletteById(id: string | undefined): Palette {
 export type ColorOverrides = Partial<Record<Color, string>>
 
 /**
+ * A complete answer to "what colour is each seat" — the set, plus anything
+ * hand-picked on top of it.
+ *
+ * It exists as a value rather than as two loose settings fields because a game
+ * takes a copy of it when it starts. Colours chosen for the game you are about
+ * to play must not reach back into the games you are already in the middle of:
+ * online, the seat you painted is somebody else's, so the paint would land on
+ * the wrong person.
+ */
+export interface PaletteChoice {
+  paletteId: string
+  colorOverrides: ColorOverrides
+}
+
+/**
  * The four colours as they should actually be drawn: the chosen palette, with
  * any hand-picked seat painted over it.
  *

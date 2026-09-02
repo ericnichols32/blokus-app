@@ -9,8 +9,14 @@ import {
   createOnlineGame,
   fillsFor,
   isYourTurn,
+  acceptRematch,
+  declineRematch,
+  endByAgreement,
   listEntry,
   opponentsOf,
+  proposeRematch,
+  rematchAgreed,
+  rematchAwaits,
   SeatingError,
   stateOf,
   submitMove,
@@ -323,6 +329,16 @@ describe('the games list', () => {
     expect(summarize(live, 'p-eric').finished).toBe(false)
     expect(summarize(live, 'p-eric').yourTurn).toBe(true)
   })
+
+  it('does believe a game everyone agreed to stop', () => {
+    // The one thing the board cannot be asked about: an abandoned game still
+    // has legal moves on it, and nothing in the position says it is over.
+    const stopped = stub({ firstColor: 'blue', finished: true, abandoned: true })
+
+    expect(summarize(stopped, 'p-eric').finished).toBe(true)
+    expect(summarize(stopped, 'p-eric').yourTurn).toBe(false)
+    expect(summarize(stopped, 'p-eric').status).toBe('Ended early')
+  })
 })
 
 describe('a game rebuilt from its stored moves', () => {
@@ -335,5 +351,75 @@ describe('a game rebuilt from its stored moves', () => {
     const before: GameState = stateOf(played)
     const after: GameState = stateOf(throughJson)
     expect(after).toEqual(before)
+  })
+})
+
+
+describe('proposing to stop a game and start another', () => {
+  const everyone = gameOpeningOn('blue', [eric, dave, sam])
+
+  it('counts the person who asked as having agreed', () => {
+    // Asking is agreeing. Making the proposer accept their own proposal would
+    // be a second tap that can only ever have one answer.
+    const asked = proposeRematch(everyone, 'p-eric')
+    expect(asked.rematch?.accepted).toEqual(['p-eric'])
+    expect(rematchAwaits(asked, 'p-eric')).toBe(false)
+    expect(rematchAwaits(asked, 'p-dave')).toBe(true)
+  })
+
+  it('needs everyone still in the game, not just one of them', () => {
+    // The point of asking rather than just doing it: a game somebody is winning
+    // should not end because the person losing wanted a fresh start.
+    const asked = proposeRematch(everyone, 'p-eric')
+    expect(rematchAgreed(asked)).toBe(false)
+
+    const one = acceptRematch(asked, 'p-dave')
+    expect(rematchAgreed(one)).toBe(false)
+
+    const all = acceptRematch(one, 'p-sam')
+    expect(rematchAgreed(all)).toBe(true)
+  })
+
+  it('does not ask the computers', () => {
+    // Nothing is being taken away from them, and a seat that can never answer
+    // would leave the proposal standing forever.
+    const withBots = gameOpeningOn('blue', [eric, dave])
+    expect(rematchAgreed(acceptRematch(proposeRematch(withBots, 'p-eric'), 'p-dave'))).toBe(true)
+  })
+
+  it('ignores somebody agreeing twice', () => {
+    const asked = proposeRematch(everyone, 'p-eric')
+    const twice = acceptRematch(acceptRematch(asked, 'p-dave'), 'p-dave')
+    expect(twice.rematch?.accepted).toEqual(['p-eric', 'p-dave'])
+    expect(rematchAgreed(twice)).toBe(false)
+  })
+
+  it('clears the proposal when anyone says keep playing', () => {
+    const asked = proposeRematch(everyone, 'p-eric')
+    // null rather than undefined, so it is written over the stored one instead
+    // of being dropped from the document and leaving the old value in place.
+    expect(declineRematch(asked).rematch).toBeNull()
+    expect(rematchAgreed(declineRematch(asked))).toBe(false)
+  })
+
+  it('refuses to end a game everyone has not agreed to end', () => {
+    const asked = proposeRematch(everyone, 'p-eric')
+    expect(() => endByAgreement(asked)).toThrow(TurnError)
+  })
+
+  it('ends the game once they have, without a result', () => {
+    // Abandoned, not finished-and-scored: nobody played it out, so there is no
+    // winner and nothing that should reach anybody's stats.
+    const all = acceptRematch(acceptRematch(proposeRematch(everyone, 'p-eric'), 'p-dave'), 'p-sam')
+    const over = endByAgreement(all)
+
+    expect(over.finished).toBe(true)
+    expect(over.abandoned).toBe(true)
+    expect(over.rematch).toBeNull()
+    expect(summarize(over, 'p-eric').yourTurn).toBe(false)
+  })
+
+  it('will not start a proposal on a game that is already over', () => {
+    expect(() => proposeRematch({ ...everyone, finished: true }, 'p-eric')).toThrow(TurnError)
   })
 })

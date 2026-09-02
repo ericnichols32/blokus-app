@@ -46,6 +46,37 @@ export interface OnlineGame {
    * finished games from live ones without replaying every one of them.
    */
   finished: boolean
+  /**
+   * Set when a game is stopped by agreement rather than played out.
+   *
+   * Kept apart from `finished` because the two mean different things to
+   * everything downstream: an abandoned game has no result, so it is never
+   * recorded, never scored, and must not be shown with a scoreboard.
+   */
+  abandoned?: boolean
+  /** A standing proposal to stop this game and start another. */
+  rematch?: Rematch | null
+}
+
+/**
+ * Somebody asking to end this game early and start a fresh one.
+ *
+ * It needs everyone's agreement, which is the whole reason it is a proposal
+ * rather than a button: a game you are winning should not end because the
+ * person losing it wanted a fresh start. Anyone can wave it away, including the
+ * person who asked.
+ */
+export interface Rematch {
+  proposedBy: string
+  proposedAt: string
+  /**
+   * Everyone who has said yes, the proposer included — asking is agreeing.
+   *
+   * A list rather than a count, because with three people the game has to know
+   * *who* is still to answer, and because a device that writes twice must not
+   * be able to accept on somebody else's behalf.
+   */
+  accepted: string[]
 }
 
 /** How the colors nobody claimed are dealt with. */
@@ -177,6 +208,17 @@ export function colorToPlay(state: GameState): Color | null {
  * computer's turn never sits waiting for long.
  */
 export function isYourTurn(game: OnlineGame, playerId: string, state = stateOf(game)): boolean {
+  /*
+   * A game stopped by agreement still has a legal move on the board, so the
+   * board alone would happily let somebody play on into a game that is over.
+   *
+   * `abandoned` and not `finished`: the finished flag is a hint the list is
+   * allowed to trust so it doesn't replay every old game, and a wrong one must
+   * never be able to make a live game unplayable. There is nothing on the board
+   * to re-derive an abandonment from, so that one has to be believed.
+   */
+  if (game.abandoned) return false
+
   const color = colorToPlay(state)
   if (!color) return false
   const seat = game.seats[color]
@@ -247,6 +289,75 @@ export function advanceComputers(
   return added
 }
 
+/** Everyone in the game who is a person, each listed once. */
+export function humansIn(game: OnlineGame): string[] {
+  const ids = new Set<string>()
+  for (const color of COLORS) {
+    const seat = game.seats[color]
+    if (seat.kind === 'human' && seat.playerId) ids.add(seat.playerId)
+  }
+  return [...ids]
+}
+
+/**
+ * Whether everyone still in the game has agreed to stop it.
+ *
+ * Every human seat has to say yes. Computers are not asked — nothing is being
+ * taken away from them.
+ */
+export function rematchAgreed(game: OnlineGame): boolean {
+  const rematch = game.rematch
+  if (!rematch) return false
+  return humansIn(game).every((id) => rematch.accepted.includes(id))
+}
+
+/** Whether this person still has to answer a standing proposal. */
+export function rematchAwaits(game: OnlineGame, playerId: string): boolean {
+  return !!game.rematch && !game.rematch.accepted.includes(playerId)
+}
+
+/** Asking to stop. Asking is agreeing, so the proposer is already in. */
+export function proposeRematch(
+  game: OnlineGame,
+  playerId: string,
+  now = new Date(),
+): OnlineGame {
+  if (game.finished) throw new TurnError('This game has already finished.')
+  return {
+    ...game,
+    rematch: { proposedBy: playerId, proposedAt: now.toISOString(), accepted: [playerId] },
+  }
+}
+
+/** Agreeing to a standing proposal. Saying yes twice changes nothing. */
+export function acceptRematch(game: OnlineGame, playerId: string): OnlineGame {
+  const rematch = game.rematch
+  if (!rematch) throw new TurnError('Nobody has asked to end this game.')
+  if (rematch.accepted.includes(playerId)) return game
+  return { ...game, rematch: { ...rematch, accepted: [...rematch.accepted, playerId] } }
+}
+
+/**
+ * Waving the proposal away, which anyone in the game may do — including whoever
+ * asked, since changing your mind is the ordinary case.
+ */
+export function declineRematch(game: OnlineGame): OnlineGame {
+  // null rather than undefined: the field has to be written over the stored
+  // one, and an undefined would be dropped from the document instead.
+  return { ...game, rematch: null }
+}
+
+/**
+ * Stopping the game, once everyone has agreed.
+ *
+ * Refused without agreement, because this is the one irreversible step: the
+ * board is over from here and there is no result to show for it.
+ */
+export function endByAgreement(game: OnlineGame, now = new Date()): OnlineGame {
+  if (!rematchAgreed(game)) throw new TurnError('Not everyone has agreed yet.')
+  return { ...game, finished: true, abandoned: true, rematch: null, updatedAt: now.toISOString() }
+}
+
 export class TurnError extends Error {}
 
 /**
@@ -289,6 +400,9 @@ export function submitMove(
 
 /** A short line saying what a game is waiting for. */
 function statusLine(game: OnlineGame, state: GameState, yourTurn: boolean): string {
+  // Said differently from a game played out, because there is no result behind
+  // it — no winner, no scores, nothing to look back at.
+  if (game.abandoned) return 'Ended early'
   if (state.gameOver) return 'Finished'
   if (yourTurn) return 'Your turn'
 
@@ -313,7 +427,15 @@ export interface GameSummary {
 export function summarize(game: OnlineGame, playerId: string): GameSummary {
   const state = stateOf(game)
   const yourTurn = isYourTurn(game, playerId, state)
-  return { game, state, yourTurn, finished: state.gameOver, status: statusLine(game, state, yourTurn) }
+  return {
+    game,
+    state,
+    yourTurn,
+    // Either way of ending counts: played out, or stopped by agreement. Still
+    // not the stored flag — see isYourTurn for why that one is only a hint.
+    finished: state.gameOver || !!game.abandoned,
+    status: statusLine(game, state, yourTurn),
+  }
 }
 
 /**
@@ -340,7 +462,14 @@ export interface ListEntry {
  * and shows the truth. Nothing is written from this path.
  */
 export function listEntry(game: OnlineGame, playerId: string): ListEntry {
-  if (game.finished) return { game, yourTurn: false, finished: true, status: 'Finished' }
+  if (game.finished) {
+    return {
+      game,
+      yourTurn: false,
+      finished: true,
+      status: game.abandoned ? 'Ended early' : 'Finished',
+    }
+  }
 
   const state = stateOf(game)
   const yourTurn = isYourTurn(game, playerId, state)

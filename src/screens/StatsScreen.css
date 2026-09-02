@@ -107,7 +107,7 @@
 
 .color-list li {
   display: grid;
-  /* Dot, name, count, then the bar spanning the full width underneath. */
+  /* Dot, name, count. */
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
@@ -122,22 +122,6 @@
   font-size: 13px;
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
-}
-
-.bar {
-  grid-column: 1 / -1;
-  height: 4px;
-  border-radius: 2px;
-  background: #1e293b;
-  overflow: hidden;
-}
-
-.bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  /* A zero-width fill would vanish; the track alone reads as "none won". */
-  min-width: 0;
 }
 
 .piece-card {

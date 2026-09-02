@@ -6,7 +6,17 @@ import { recordFinishedGame } from './history'
 import type { GameRecord } from './history'
 import { normalizeUsername } from './account'
 import type { Account } from './account'
-import { colorsOf, createOnlineGame, stateOf, submitMove, summarize } from './online'
+import {
+  acceptRematch,
+  colorsOf,
+  createOnlineGame,
+  declineRematch,
+  endByAgreement,
+  proposeRematch,
+  stateOf,
+  submitMove,
+  summarize,
+} from './online'
 import type { OnlineGame, Participant, SeatFill } from './online'
 import type { Session } from './session'
 
@@ -203,7 +213,7 @@ export async function takeTurn(
   const played = submitMove(game, playerId, move)
 
   try {
-    await getBackend().submitOnlineTurn(played, game.moves.length)
+    await getBackend().writeOnlineGame(played, game.moves.length)
   } catch (error) {
     if (error instanceof StaleGameError) {
       throw new StaleTurnError(error.message, await refreshGame(game.id).catch(() => null))
@@ -216,6 +226,59 @@ export async function takeTurn(
   }
 
   return played
+}
+
+/**
+ * Writes a change that isn't a move — a rematch proposed, agreed to, waved
+ * away, or acted on.
+ *
+ * Goes through the same stale check as a turn, with the move count unchanged:
+ * these are whole-document writes made from a game read a moment ago, and two
+ * people answering a proposal at the same time is exactly the case it exists
+ * for. A refusal comes back with the game that won, so the screen can show what
+ * actually happened rather than the answer it tried to give.
+ */
+async function writeAside(game: OnlineGame, changed: OnlineGame): Promise<OnlineGame> {
+  try {
+    await getBackend().writeOnlineGame(changed, game.moves.length)
+  } catch (error) {
+    if (error instanceof StaleGameError) {
+      throw new StaleTurnError(error.message, await refreshGame(game.id).catch(() => null))
+    }
+    throw failure(
+      error,
+      "The database refused that — the app's online rules need publishing.",
+      "Couldn't save that. Check your connection and try again.",
+    )
+  }
+  return changed
+}
+
+/** Asks everyone else to stop this game and start a fresh one. */
+export function askForRematch(game: OnlineGame, playerId: string): Promise<OnlineGame> {
+  return writeAside(game, proposeRematch(game, playerId))
+}
+
+/** Says yes to a standing proposal. */
+export function agreeToRematch(game: OnlineGame, playerId: string): Promise<OnlineGame> {
+  return writeAside(game, acceptRematch(game, playerId))
+}
+
+/** Waves the proposal away — anyone in the game may, including whoever asked. */
+export function keepPlaying(game: OnlineGame): Promise<OnlineGame> {
+  return writeAside(game, declineRematch(game))
+}
+
+/**
+ * Stops the game, now that everyone has agreed.
+ *
+ * Separate from agreeing, and deliberately not automatic on the last yes: the
+ * person who ends it is the one who then sets the next game up, and having a
+ * game end itself under whoever happened to answer last would leave nobody
+ * holding that.
+ */
+export function endGameNow(game: OnlineGame): Promise<OnlineGame> {
+  return writeAside(game, endByAgreement(game))
 }
 
 /** A turn refused because the game had moved on, carrying the board that won. */

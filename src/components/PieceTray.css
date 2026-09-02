@@ -13,6 +13,18 @@
 .piece-tray {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  /*
+   * Rows tall enough for the longest piece standing on end — five cells — and
+   * fixed at that whatever the pieces in them happen to be.
+   *
+   * Not cosmetic. Turning the board turns the pieces in the tray with it, so
+   * rows sized to their contents got shorter and taller as the board went
+   * round, and the board — which takes whatever height the tray leaves — grew
+   * and shrank by twelve pixels on every tap of the turn button. A fixed row
+   * costs a few pixels of tray on a short screen and makes the board hold
+   * still.
+   */
+  grid-auto-rows: 55px;
   align-items: center;
   justify-items: center;
   gap: 10px 4px;

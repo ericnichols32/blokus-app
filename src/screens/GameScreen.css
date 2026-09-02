@@ -235,8 +235,18 @@
   line-height: 1.4;
 }
 
-/* The back-arrow menu. A solo game is resumed rather than chosen from the home
-   screen, so this is the only door out of one. */
+/* The "end this game?" question, and the New game button that raises it. A solo
+   game is resumed rather than chosen from the home screen, so this is the only
+   door out of one. */
+.btn.new-game {
+  /* The turn label already takes the slack, so both of these just sit at the
+     end of the row in the order they are written. */
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .board-menu-backdrop {
   position: fixed;
   inset: 0;
@@ -265,4 +275,39 @@
   font-size: 15px;
   line-height: 1.45;
   color: #cbd5e1;
+}
+
+/* The standing proposal to stop the game, across the top of the board. Sits
+   where the turn error does, because both are things that happened to your game
+   while you were looking at it. */
+.rematch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #3730a3;
+  background: #171b3a;
+}
+
+.rematch-text {
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #c7d2fe;
+}
+
+.rematch-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.rematch-actions .btn {
+  padding: 8px 12px;
+  font-size: 13px;
+  white-space: nowrap;
 }

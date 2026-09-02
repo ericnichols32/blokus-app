@@ -9,67 +9,6 @@
   color: #64748b;
 }
 
-.head-to-head {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.figure {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 14px;
-  border-radius: 10px;
-  border: 1px solid #1e293b;
-  background: #0f172a;
-}
-
-/* Whoever is ahead, so the shape of the record reads before the numbers do. */
-.figure.accent {
-  border-color: #1d4ed8;
-  background: #111f3d;
-}
-
-.figure-value {
-  font-size: 26px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.figure-label {
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.score-compare {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.score-compare li {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 11px 4px;
-  font-size: 15px;
-  border-top: 1px solid #131c2e;
-}
-
-.score-compare li:first-child {
-  border-top: none;
-}
-
-.score-compare strong {
-  font-variant-numeric: tabular-nums;
-  font-size: 17px;
-}
-
 .meeting-list {
   list-style: none;
   margin: 0;
@@ -176,10 +115,68 @@
   color: #94a3b8;
 }
 
-.friend-record {
+.friend-tally {
   margin-left: auto;
   flex: 0 0 auto;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   color: #94a3b8;
+}
+
+/* You and them, column by column. A table rather than two lists, because every
+   row here is a comparison and the pairing is the whole point. */
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.compare th,
+.compare td {
+  padding: 9px 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.compare tbody th {
+  text-align: left;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+.compare tbody tr + tr th,
+.compare tbody tr + tr td {
+  border-top: 1px solid #111c2f;
+}
+
+/* A figure that belongs to both of you sits between the columns rather than
+   under one of them, where it would read as hers alone. */
+.compare td[colspan] {
+  text-align: center;
+}
+
+/* Their name can be long; the label column gives up its space first. */
+.compare thead th:not(:first-child) {
+  width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friend-piece {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.friend-piece .note {
+  margin: 0;
 }
