@@ -256,10 +256,21 @@ function Screens({ settings, setSettings }: ScreensProps) {
     if (humanColor) setSession(createSolo(humanColor, strength, session.timed, drawFirstColor()))
   }
 
-  function signedIn(next: Account) {
+  /**
+   * Signed in, without leaving the account screen.
+   *
+   * The setting-up flow needs this: a photo can only be saved onto an account
+   * that already exists, so a new player is signed in one step before they are
+   * finished with the screen.
+   */
+  function claimed(next: Account) {
     setAccount(next)
     saveAccount(next)
     markPrompted()
+  }
+
+  function signedIn(next: Account) {
+    claimed(next)
     setScreen('home')
   }
 
@@ -285,6 +296,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
         account={account}
         photo={friends.me?.photo}
         onPhotoChange={friends.setPhoto}
+        onClaimed={claimed}
         onSignedIn={signedIn}
         onSignOut={signOut}
         onClose={leaveAccountScreen}

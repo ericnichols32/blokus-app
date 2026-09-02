@@ -17,6 +17,14 @@ interface AccountScreenProps {
   photo?: string
   /** Saves a new photo, or clears it when given null. */
   onPhotoChange: (photo: string | null) => Promise<void>
+  /**
+   * Signed in, but staying on this screen.
+   *
+   * The photo step needs an account that already exists — there is nothing to
+   * save a picture onto until the name is claimed — so a brand new player is
+   * signed in here and only leaves when `onSignedIn` is called at the end.
+   */
+  onClaimed: (account: Account) => void
   onSignedIn: (account: Account) => void
   onSignOut: () => void
   /**
@@ -38,12 +46,13 @@ interface AccountScreenProps {
  * Renaming is the one case where a taken name is a refusal: you are already
  * someone, and merging you into a different person would lose your games.
  */
-type Step = 'name' | 'choose-pin' | 'confirm-identity'
+type Step = 'name' | 'choose-pin' | 'photo' | 'confirm-identity'
 
 export function AccountScreen({
   account,
   photo,
   onPhotoChange,
+  onClaimed,
   onSignedIn,
   onSignOut,
   onClose,
@@ -128,11 +137,25 @@ export function AccountScreen({
     setStep('choose-pin')
   }
 
-  async function finish(options: { adoptPlayerId?: string; pin?: string }) {
+  async function finish(options: {
+    adoptPlayerId?: string
+    pin?: string
+    /** Whether to go on to the photo rather than straight to the menu. */
+    thenPhoto?: boolean
+  }) {
     setBusy(true)
     setError(null)
     try {
-      onSignedIn(await claim(name, { ...options, existing: account ?? undefined }))
+      const { thenPhoto, ...claimOptions } = options
+      const claimed = await claim(name, { ...claimOptions, existing: account ?? undefined })
+
+      if (thenPhoto) {
+        onClaimed(claimed)
+        setStep('photo')
+        setBusy(false)
+        return
+      }
+      onSignedIn(claimed)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setBusy(false)
@@ -165,7 +188,7 @@ export function AccountScreen({
       return
     }
 
-    await finish({ pin })
+    await finish({ pin, thenPhoto: true })
   }
 
   async function submitIdentity(event: FormEvent) {
@@ -263,6 +286,63 @@ export function AccountScreen({
           There's no way to reset this. Nothing here knows your email or your phone number, so
           there's nothing to prove it's you with. Forget the PIN and you'll have to start again
           under a new name — the games under this one stay with it.
+        </p>
+      </div>
+    )
+  }
+
+  if (step === 'photo') {
+    /*
+     * The last step of setting up, and the only one that is genuinely optional.
+     *
+     * It comes after the name rather than before it because there has to be an
+     * account to save a picture onto — and it comes at all because the friends
+     * page is a grid of faces, and a friend who never sets one is a letter on
+     * every one of their friends' phones.
+     *
+     * No back arrow: the name and PIN behind this are already claimed, so there
+     * is nothing left to go back and change here.
+     */
+    return (
+      <div className="screen inner account">
+        <header className="screen-header">
+          <h1>Add a photo</h1>
+        </header>
+
+        <p className="account-lede">
+          Your friends see this beside your name on their friends page, so they know which
+          <strong> @{account?.username ?? name}</strong> is you.
+        </p>
+
+        <section className="account-photo">
+          <Avatar username={account?.username ?? name} photo={photo} size={112} />
+
+          {photoBusy ? (
+            <p className="photo-status">Saving…</p>
+          ) : (
+            <div className="photo-actions">
+              <PhotoButton label="Take a photo" capture onPick={pickPhoto} />
+              <PhotoButton label="Choose a photo" onPick={pickPhoto} />
+            </div>
+          )}
+
+          {photoError && <p className="account-error">{photoError}</p>}
+        </section>
+
+        {/* Quiet until there is a photo, so that "skip" reads as the smaller
+            of the two things you could do and "done" reads as finishing. */}
+        <button
+          type="button"
+          className={photo ? 'btn primary tall' : 'btn quiet'}
+          disabled={photoBusy}
+          onClick={() => account && onSignedIn(account)}
+        >
+          {photo ? <span>Done</span> : 'Skip for now'}
+        </button>
+
+        <p className="account-note">
+          You can add or change it any time from your name at the bottom of the menu. Anyone who
+          has the link to this app can see it.
         </p>
       </div>
     )
@@ -366,7 +446,7 @@ export function AccountScreen({
       <p className="account-lede">
         {renaming
           ? 'Change what your friends see. Your games stay with you.'
-          : `This is how your friends will find you. You'll pick a ${PIN_LENGTH}-digit PIN next, so that typing this name on another phone signs you back in and nobody else.`}
+          : `This is how your friends will find you. Then a ${PIN_LENGTH}-digit PIN, so that typing this name on another phone signs you back in and nobody else, and a photo.`}
       </p>
 
       <form className="stack" onSubmit={submitName}>

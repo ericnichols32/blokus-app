@@ -171,6 +171,11 @@ backwards is the one way that stat can actively mislead.
 
 ### Profile photos
 
+Setting up is three steps, in this order: the name, the PIN, then the photo.
+The photo is last because there has to be an account to save a picture onto,
+and it is the only one of the three that can be skipped — a friend who skips it
+is a letter on everybody else's grid until they go back and add one.
+
 A photo comes in through one of two buttons — **Take a photo**, which opens the
 front camera, or **Choose a photo**, which opens the library. Two controls
 rather than one, because a lone file input buries the camera inside the phone's
