@@ -11,6 +11,11 @@ import './OnlineSetupScreen.css'
 interface OnlineSetupScreenProps {
   account: Account
   settings: Settings
+  /**
+   * Somebody's name, already typed in — a game started from their card on the
+   * friends page has already said who it is against.
+   */
+  initialFriend?: string
   /** No seat to pass: colours are dealt when the game is made. */
   onEditColors: () => void
   onStarted: (gameId: string) => void
@@ -33,13 +38,14 @@ const FILL_BLURB: Record<SeatFill, string> = {
 export function OnlineSetupScreen({
   account,
   settings,
+  initialFriend,
   onEditColors,
   onStarted,
   onCancel,
 }: OnlineSetupScreenProps) {
   const palette = usePalette()
   const [friendCount, setFriendCount] = useState(1)
-  const [names, setNames] = useState<string[]>(['', '', ''])
+  const [names, setNames] = useState<string[]>([initialFriend ?? '', '', ''])
   const [fill, setFill] = useState<SeatFill>('double')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

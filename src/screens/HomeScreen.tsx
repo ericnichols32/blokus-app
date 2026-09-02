@@ -1,4 +1,5 @@
-import { describeSession, isResumable } from '../session'
+import { Avatar } from '../components/Avatar'
+import { isResumable } from '../session'
 import type { Session } from '../session'
 import type { Account } from '../account'
 import './HomeScreen.css'
@@ -7,37 +8,48 @@ interface HomeScreenProps {
   saved: Session | null
   /** Who is signed in, or null if nobody has claimed a name on this device. */
   account: Account | null
-  /** Finished games counted on the stats screen. */
-  gamesRecorded: number
-  onResume: () => void
+  /** Your own photo, for the chip at the bottom. */
+  photo?: string
+  /** Online games waiting on your move. */
+  waitingOnYou: number
+  /** Online games still going, whoever they are waiting on. */
+  liveGames: number
   onPlaySolo: () => void
-  onPlayOnline: () => void
+  onPlayFriends: () => void
   onStats: () => void
   onSettings: () => void
   onAccount: () => void
 }
 
+/**
+ * Two things to do, and everything else out of the way.
+ *
+ * The screen used to list every game in progress, every destination and a count
+ * of finished games, which meant reading it before playing anything. There are
+ * really only two intentions — play the computer, or play a person — so those
+ * get the whole middle of the screen, and each one carries the single line that
+ * says what tapping it will do right now.
+ *
+ * Your name, the stats and the settings sit in a quiet row at the bottom. They
+ * are all things you visit occasionally and never twice in a row.
+ */
 export function HomeScreen({
   saved,
   account,
-  gamesRecorded,
-  onResume,
+  photo,
+  waitingOnYou,
+  liveGames,
   onPlaySolo,
-  onPlayOnline,
+  onPlayFriends,
   onStats,
   onSettings,
   onAccount,
 }: HomeScreenProps) {
-  const resumable = saved !== null && isResumable(saved)
+  const resumable = saved !== null && saved.mode !== 'online' && isResumable(saved)
+  const placed = saved?.state.placedPieces.length ?? 0
 
   return (
     <div className="screen home">
-      {/* Opposite the gear, so the two things you set once sit in the corners
-          and the buttons that start a game keep the middle to themselves. */}
-      <button type="button" className="account-chip" onClick={onAccount}>
-        {account ? `@${account.username}` : 'Sign in'}
-      </button>
-
       <div className="home-header">
         <div className="logo" aria-hidden="true">
           <span className="logo-cell c1" />
@@ -46,57 +58,58 @@ export function HomeScreen({
           <span className="logo-cell c4" />
         </div>
         <h1>Blokus</h1>
-        <button
-          type="button"
-          className="icon-btn settings-btn"
-          onClick={onSettings}
-          aria-label="Settings"
-          title="Settings"
-        >
-          ⚙
-        </button>
       </div>
 
-      <div className="stack">
-        {resumable && (
-          <button type="button" className="btn primary tall" onClick={onResume}>
-            <span>Resume game</span>
-            <span className="sub">{describeSession(saved)}</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          className={resumable ? 'btn tall' : 'btn primary tall'}
-          onClick={onPlaySolo}
-        >
-          <span>Play the computer</span>
-          <span className="sub">You against three opponents</span>
+      <div className="home-choices">
+        <button type="button" className="home-card" onClick={onPlaySolo}>
+          <span className="home-card-title">Play solo</span>
+          <span className={`home-card-sub ${resumable ? 'live' : ''}`}>
+            {resumable
+              ? `Game in progress · ${placed} ${placed === 1 ? 'piece' : 'pieces'} played`
+              : 'You against three computers'}
+          </span>
         </button>
 
-        <button type="button" className="btn tall" onClick={onPlayOnline}>
-          <span>Online games with friends</span>
-          <span className="sub">Start a new game or resume playing</span>
-        </button>
-
-        {/* Left enabled with nothing recorded: the screen itself explains what
-            will show up, which beats a dead button that explains nothing. */}
-        <button type="button" className="btn tall" onClick={onStats}>
-          <span>Stats</span>
-          <span className="sub">
-            {gamesRecorded === 0
-              ? 'Nothing counted yet — finish a game'
-              : /* "Saved" rather than "counted": games from the old
-                   pass-and-play mode are saved but can't count towards a
-                   record, so the stats screen can show a smaller number. */
-                `${gamesRecorded} ${gamesRecorded === 1 ? 'game' : 'games'} saved`}
+        <button type="button" className="home-card" onClick={onPlayFriends}>
+          <span className="home-card-title">Play with friends</span>
+          <span className={`home-card-sub ${waitingOnYou > 0 ? 'now' : ''}`}>
+            {!account
+              ? 'Pick a name and play the people you know'
+              : waitingOnYou > 0
+                ? `${waitingOnYou} waiting on you`
+                : liveGames > 0
+                  ? `${liveGames} ${liveGames === 1 ? 'game' : 'games'} going`
+                  : 'Start a game with someone'}
           </span>
         </button>
       </div>
 
-      {resumable && (
-        <p className="hint">Starting a new game replaces the one in progress.</p>
-      )}
+      <div className="home-footer">
+        <button type="button" className="home-chip" onClick={onAccount}>
+          {account ? (
+            <>
+              <Avatar username={account.username} photo={photo} size={24} />
+              <span className="chip-name">@{account.username}</span>
+            </>
+          ) : (
+            <span className="chip-name">Sign in</span>
+          )}
+        </button>
+
+        <button type="button" className="home-chip" onClick={onStats}>
+          <span className="chip-name">Stats</span>
+        </button>
+
+        <button
+          type="button"
+          className="home-chip"
+          onClick={onSettings}
+          aria-label="Settings"
+          title="Settings"
+        >
+          <span aria-hidden="true">⚙</span>
+        </button>
+      </div>
     </div>
   )
 }

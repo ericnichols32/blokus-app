@@ -1,0 +1,14 @@
+.avatar {
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: cover;
+  background: #1e293b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #f8fafc;
+  /* A photo of a pale wall against a dark screen needs an edge to end on. */
+  border: 1px solid rgba(248, 250, 252, 0.12);
+  user-select: none;
+}

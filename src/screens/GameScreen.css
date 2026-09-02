@@ -234,3 +234,35 @@
   font-size: 13px;
   line-height: 1.4;
 }
+
+/* The back-arrow menu. A solo game is resumed rather than chosen from the home
+   screen, so this is the only door out of one. */
+.board-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.72);
+  padding: calc(env(safe-area-inset-top) + 64px) 16px 16px;
+}
+
+.board-menu {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #1e293b;
+  background: #0b1220;
+}
+
+.board-menu-ask {
+  margin: 0 2px 4px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #cbd5e1;
+}

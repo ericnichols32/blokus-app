@@ -10,19 +10,23 @@ TestFlight, no developer account.
 
 The full intent, so it isn't only in someone's head:
 
-- **Home screen** — start a new game, resume one in progress, reach stats.
+- **Home screen** — two choices and nothing else: play solo, or play with
+  friends. Solo picks up the game in progress if there is one; your name, stats
+  and settings sit in a quiet row underneath.
 - **Solo vs. computer** — play the AI, in either an open (untimed) or timed
   game: a budget to pick a piece, then the same again to place it. Fifteen
   seconds each by default, and settable between 5 and 120.
 - **Async online play against friends** — games persist and resume across
   sessions, so two people can trade moves over days rather than sitting down
-  together.
+  together. Reached through a page of friend cards: a photo, a name, whether it
+  is your turn, and your lifetime record with them.
 - **Stats** — wins and losses, average pieces left, perfect games, favourite
   colour and piece, and per-friend records.
 - **Gameplay** — drag a piece onto the board, rotate it, flip it, lock it in.
   Each player should be able to look at the board from their own side.
 - **Accounts** — a username, claimed the first time you open the link, with no
   password, so stats are tied to a person and visible on other people's pages.
+  A profile photo too, which is what makes the friends page a page of faces.
 
 > The bullets above are reconstructed from conversation, not copied from a
 > written spec. If any of it drifts from what you actually want — particularly
@@ -45,6 +49,8 @@ The full intent, so it isn't only in someone's head:
 | Timed mode | Done — solo games, two clocks a turn, length configurable |
 | Stats screen | Done — solo games only; per-friend records need online play |
 | Online play against friends | Done — one, two or three friends, async |
+| Friends page | Done — add by name, cards with photo, turn and record |
+| Profile photos | Done — cropped and shrunk onto the profile itself |
 
 ## Rules as implemented
 
@@ -82,6 +88,10 @@ src/
   settings.ts    Preferences that outlive a game
   online.ts      Games against friends: seating, turns, and the move list
   onlineActions.ts  What the screens do with one — invites, turns, errors
+  friends.ts     Who is on your friends page, and what each card says
+  useFriends.ts  That page's data, loaded once and shared with the home screen
+  photo.ts       Cropping and shrinking a picked photo to a thumbnail
+  ago.ts         "yesterday", "3d ago" — how long since a game moved
   history.ts     Finished games, summarised as they end
   stats.ts       Turns those summaries into the figures on the stats screen
   boardZoom.ts   How far the board is pinched, and what keeps it reachable
@@ -129,6 +139,52 @@ Turns are written in a transaction that refuses the write if the game moved on,
 so two friends playing at once cannot erase each other. The rules file cannot
 enforce turn order or legality — sign-in is anonymous and an account is a typed
 username, so nothing ties a caller to a player. That is enforced on the device.
+
+### The friends page
+
+Online play is reached through a grid of friend cards, two across: a photo, a
+name, what to do next — **Your turn**, **Their turn** or **Play** — and, in the
+smallest text on the card, the lifetime record against that person. Cards sort
+by what needs doing: your turn first, then theirs, then people you have no game
+with.
+
+Two rules decide who is on the page, and either alone would be wrong:
+
+1. **You add people by name.** It is your list, not a log of everyone the app
+   has ever seated you with.
+2. **Anyone who starts a game with you is added anyway**, and stays. Without
+   this a friend could invite you to a game you would never see, and they would
+   wait for a turn that could not arrive — the list would be hiding a game
+   rather than tidying one away. Removing somebody is refused while a game with
+   them is still going, since this rule would only put them straight back.
+
+The list lives on the profile, not the device, so signing in on another phone
+doesn't land on an empty page.
+
+A game with **two or three friends** in it belongs to all of them at once, so it
+can't sit on any one face: those live on a Group game tile above the grid.
+Finished games move off the page entirely, to Past games at the bottom.
+
+The record on the card is spelled out — "Won 4 · Lost 2" — rather than written
+as 4–2. Which number is whose is not obvious in text that small, and reading it
+backwards is the one way that stat can actively mislead.
+
+### Profile photos
+
+A photo comes in through one of two buttons — **Take a photo**, which opens the
+front camera, or **Choose a photo**, which opens the library. Two controls
+rather than one, because a lone file input buries the camera inside the phone's
+own action sheet, and the `capture` attribute that separates them is honoured by
+phones and ignored on a laptop, where both open the same chooser.
+
+It is then cropped to its middle square, shrunk to 256 pixels and encoded as a
+JPEG data URL, which is stored **on the profile document itself**. Firebase's file storage is not on the free plan, and a
+thumbnail this size is a few tens of kilobytes — a real phone photo of 1.5 MB
+comes out around 3 KB. Friends' photos are cached on the device so the grid
+draws faces on the first frame instead of a screenful of blanks.
+
+Anyone who can look a name up can read the photo, exactly like the username and
+the PIN hash. The account screen says so, next to the button that uploads one.
 
 ### Per-friend records
 
@@ -301,16 +357,15 @@ The countdown is derived from timestamps rather than counted down tick by tick,
 so a phone that sleeps mid-turn comes back with the correct time elapsed instead
 of a clock that paused while you were away.
 
-Settings, reached from the gear on the home screen, holds the live score counter
-(off by default) and the computer's difficulty (hard by default).
+Settings, reached from the gear at the bottom of the home screen, holds the live
+score counter (off by default) and the computer's difficulty (hard by default).
 
 ### Finished games
 
 Every completed game is summarised into `blokus:history:v1` when it ends. The
-stats screen doesn't exist yet, but a game not written down when it finishes is
-gone — nothing else keeps a finished board — so recording started early rather
-than letting stats begin from zero on the day it ships. The home screen shows
-the running count.
+stats screen came later, but a game not written down when it finishes is gone —
+nothing else keeps a finished board — so recording started early rather than
+letting stats begin from zero on the day it shipped.
 
 A record holds each player's score, squares left, whether it was a perfect game,
 their rank, and which pieces they never placed. That last one is what makes
@@ -323,8 +378,8 @@ The store is capped at 500 games, oldest dropped first.
 ## Accounts
 
 A username and a four-digit PIN. You are asked for both the first time you open
-the app, once — declining is remembered, and the chip in the top-left corner of
-the home screen is the way back in.
+the app, once — declining is remembered, and the chip at the bottom of the home
+screen is the way back in.
 
 ### The name is the account
 

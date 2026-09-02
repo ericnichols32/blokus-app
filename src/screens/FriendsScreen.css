@@ -1,0 +1,303 @@
+.friends {
+  gap: 18px;
+}
+
+.friends .note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+/* Said once, near the top, where somebody about to invite a friend will read it. */
+.friends .note.warn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #78350f;
+  background: #241a09;
+  color: #fcd34d;
+}
+
+.friends .note.error,
+.sheet .note.error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #7f1d1d;
+  background: #2a1215;
+  color: #fecaca;
+}
+
+.icon-btn.refresh {
+  margin-left: auto;
+}
+
+.friends .empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.friends .empty-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.friends .empty-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.friends .empty .btn {
+  margin-top: 10px;
+  align-items: center;
+}
+
+/* Group games, above the grid: a game with three people in it belongs to all of
+   them, so it can't sit on any one face. */
+.group-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: inherit;
+  text-align: left;
+}
+
+.group-tile.now {
+  border-color: #166534;
+  background: #0d1f16;
+}
+
+.group-tile.new {
+  border-style: dashed;
+  border-color: #334155;
+  background: transparent;
+}
+
+.group-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.group-who {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-tile.now .group-who {
+  color: #4ade80;
+}
+
+.group-detail {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.group-go {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 20px;
+  color: #64748b;
+}
+
+/*
+ * Two across, whatever the phone: any narrower and the face stops being a face,
+ * and three across on a big phone would only make the tiles smaller for no gain.
+ */
+.friend-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.friend-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* A little taller than square, so the name and the two lines under it have
+     room without squeezing the photo. */
+  aspect-ratio: 1 / 1.16;
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1px solid #1e293b;
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: inherit;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Waiting on you is the one state worth spotting from across the grid. */
+.friend-tile.now {
+  border-color: #166534;
+  background: #0d1f16;
+}
+
+.friend-tile.add {
+  border-style: dashed;
+  border-color: #334155;
+  background: transparent;
+  color: #94a3b8;
+  justify-content: center;
+  gap: 8px;
+}
+
+.add-plus {
+  font-size: 34px;
+  line-height: 1;
+  color: #475569;
+}
+
+.friend-name {
+  font-size: 15px;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-action {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.friend-action.now {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.friend-action.idle {
+  color: #60a5fa;
+}
+
+/* Deliberately the quietest thing on the tile: it settles an argument, it isn't
+   what the tile is for. */
+.friend-record {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.past-games {
+  align-self: center;
+  font-size: 14px;
+}
+
+/* The add/remove panel and the which-game chooser. */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.72);
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
+.sheet {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80svh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #1e293b;
+  background: #0b1220;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sheet-header h2 {
+  margin: 0;
+  font-size: 16px;
+  flex: 1;
+}
+
+.sheet-header .icon-btn {
+  margin-left: auto;
+}
+
+.add-friend {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.add-friend .name-field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Smaller than the sign-in field this borrows — still over the 16px that stops
+   iOS zooming the page, but not the headline of the panel. */
+.add-friend .name-input,
+.add-friend .at {
+  font-size: 17px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.add-friend .at {
+  padding: 0;
+}
+
+.manage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manage-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manage-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage-list .btn.quiet {
+  padding: 8px 10px;
+  font-size: 13px;
+}

@@ -12,7 +12,6 @@ import {
   listEntry,
   opponentsOf,
   SeatingError,
-  groupForPlayer,
   stateOf,
   submitMove,
   summarize,
@@ -302,32 +301,6 @@ describe('the games list', () => {
 
     const finished = playToEnd(yours)
     expect(summarize(finished, 'p-eric').status).toBe('Finished')
-  })
-
-  it('splits the games into yours, theirs and finished', () => {
-    const waiting = stub({ id: 'waiting', firstColor: 'yellow', updatedAt: '2026-08-09T12:00:00Z' })
-    const yoursOld = stub({ id: 'yours-old', firstColor: 'blue', updatedAt: '2026-08-02T12:00:00Z' })
-    const yoursNew = stub({ id: 'yours-new', firstColor: 'blue', updatedAt: '2026-08-08T12:00:00Z' })
-    const done = {
-      ...playToEnd(gameOpeningOn('blue', [eric, dave, sam, jo])),
-      id: 'done',
-      updatedAt: '2026-08-10T12:00:00Z',
-    }
-
-    const groups = groupForPlayer([waiting, yoursOld, done, yoursNew], 'p-eric')
-
-    // Newest first inside each pile, and the finished game stays out of both
-    // live piles despite being the most recently touched.
-    expect(groups.yours.map((e) => e.game.id)).toEqual(['yours-new', 'yours-old'])
-    expect(groups.theirs.map((e) => e.game.id)).toEqual(['waiting'])
-    expect(groups.finished.map((e) => e.game.id)).toEqual(['done'])
-  })
-
-  it('gives empty piles rather than leaving them out', () => {
-    // The screen shows "Your turn" even when nothing is waiting, so the pile has
-    // to exist to be rendered as empty.
-    const groups = groupForPlayer([], 'p-eric')
-    expect(groups).toEqual({ yours: [], theirs: [], finished: [] })
   })
 
   it('takes a list row for a finished game without replaying it', () => {

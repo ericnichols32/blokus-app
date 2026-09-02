@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { Avatar } from '../components/Avatar'
+import { PhotoError, photoFromFile } from '../photo'
 import { USERNAME_MAX } from '../account'
 import type { Account } from '../account'
 import { getBackend, isOnline } from '../backend'
@@ -11,6 +13,10 @@ import './AccountScreen.css'
 interface AccountScreenProps {
   /** The person already signed in on this device, if any. */
   account: Account | null
+  /** Their photo, if they have set one. */
+  photo?: string
+  /** Saves a new photo, or clears it when given null. */
+  onPhotoChange: (photo: string | null) => Promise<void>
   onSignedIn: (account: Account) => void
   onSignOut: () => void
   /**
@@ -34,7 +40,14 @@ interface AccountScreenProps {
  */
 type Step = 'name' | 'choose-pin' | 'confirm-identity'
 
-export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: AccountScreenProps) {
+export function AccountScreen({
+  account,
+  photo,
+  onPhotoChange,
+  onSignedIn,
+  onSignOut,
+  onClose,
+}: AccountScreenProps) {
   const [name, setName] = useState(account?.username ?? '')
   const [step, setStep] = useState<Step>('name')
   const [busy, setBusy] = useState(false)
@@ -44,6 +57,8 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
   const [pinAgain, setPinAgain] = useState('')
   /** Whether the signed-in account already has a PIN; null while unknown. */
   const [protectedAlready, setProtectedAlready] = useState<boolean | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
 
   const renaming = account !== null
   const shared = isOnline()
@@ -169,6 +184,40 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
     await finish({ adoptPlayerId: confirming.playerId })
   }
 
+  async function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Cleared straight away so that picking the very same photo again still
+    // fires a change — otherwise a failed attempt cannot be retried.
+    event.target.value = ''
+    if (!file || photoBusy) return
+
+    setPhotoBusy(true)
+    setPhotoError(null)
+    try {
+      await onPhotoChange(await photoFromFile(file))
+    } catch (err) {
+      setPhotoError(
+        err instanceof PhotoError || err instanceof Error
+          ? err.message
+          : "Couldn't save that photo.",
+      )
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function clearPhoto() {
+    setPhotoBusy(true)
+    setPhotoError(null)
+    try {
+      await onPhotoChange(null)
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Couldn't remove that photo.")
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
   function backToName() {
     setStep('name')
     setConfirming(null)
@@ -281,6 +330,39 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
         <h1>{renaming ? 'Your name' : 'Pick a name'}</h1>
       </header>
 
+      {renaming && (
+        <section className="account-photo">
+          <Avatar username={account.username} photo={photo} size={96} />
+
+          {photoBusy ? (
+            <p className="photo-status">Saving…</p>
+          ) : (
+            <div className="photo-actions">
+              {/* Two controls rather than one, because left to itself the phone
+                  buries the camera in an action sheet — and "take one now" and
+                  "use one I already like" are genuinely different intentions. */}
+              <PhotoButton label="Take a photo" capture onPick={pickPhoto} />
+              <PhotoButton label="Choose a photo" onPick={pickPhoto} />
+            </div>
+          )}
+
+          {photo && !photoBusy && (
+            <button type="button" className="btn quiet" onClick={() => void clearPhoto()}>
+              Remove photo
+            </button>
+          )}
+
+          {photoError && <p className="account-error">{photoError}</p>}
+
+          {/* The same bargain as the name and the PIN, said where somebody is
+              about to upload their face. */}
+          <p className="account-note">
+            Your friends see this beside your name. Anyone who has the link to this app can see it
+            too.
+          </p>
+        </section>
+      )}
+
       <p className="account-lede">
         {renaming
           ? 'Change what your friends see. Your games stay with you.'
@@ -377,6 +459,41 @@ export function AccountScreen({ account, onSignedIn, onSignOut, onClose }: Accou
         </div>
       )}
     </div>
+  )
+}
+
+interface PhotoButtonProps {
+  label: string
+  /** Open the camera straight away rather than the photo library. */
+  capture?: boolean
+  onPick: (event: ChangeEvent<HTMLInputElement>) => Promise<void>
+}
+
+/**
+ * One of the two ways to get a picture in.
+ *
+ * A file input dressed as a button: it is the only thing that can open a
+ * phone's camera or library, and it cannot be triggered from script. The input
+ * is hidden with clipping rather than `display: none`, which would take it out
+ * of the accessibility tree and leave the control unreachable by keyboard.
+ *
+ * `capture` is honoured by phones and ignored everywhere else, so on a laptop
+ * both buttons open the same file chooser. That is the right failure: the
+ * choice only exists where a camera does.
+ */
+function PhotoButton({ label, capture, onPick }: PhotoButtonProps) {
+  return (
+    <label className="btn photo-btn">
+      <span>{label}</span>
+      <input
+        className="visually-hidden"
+        type="file"
+        accept="image/*"
+        // The front camera: this is a picture of you, for your own name.
+        capture={capture ? 'user' : undefined}
+        onChange={(event) => void onPick(event)}
+      />
+    </label>
   )
 }
 

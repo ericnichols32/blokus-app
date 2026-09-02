@@ -107,6 +107,15 @@ interface GameScreenProps {
   onStateChange: (state: GameState) => void
   onExit: () => void
   onPlayAgain: () => void
+  /**
+   * Abandon this game and set up a fresh one.
+   *
+   * Only given for a solo game, and this is the only route to one: the home
+   * screen resumes a solo game in progress rather than offering a choice, so
+   * without a way out from in here a game you had lost interest in would be the
+   * only game you could ever play again.
+   */
+  onNewGame?: () => void
   online?: OnlineControls
 }
 
@@ -116,6 +125,7 @@ export function GameScreen({
   onStateChange,
   onExit,
   onPlayAgain,
+  onNewGame,
   online,
 }: GameScreenProps) {
   const gameState = session.state
@@ -126,6 +136,8 @@ export function GameScreen({
   const [anchor, setAnchor] = useState<[number, number] | null>(null)
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null)
   const [clock, setClock] = useState<ClockState | null>(null)
+  /** The back-arrow menu: shut, open, or asking before it throws a game away. */
+  const [menu, setMenu] = useState<'shut' | 'open' | 'confirm'>('shut')
   // Bumped by the ticker purely to re-read the wall clock; the countdown is
   // derived, so nothing but the displayed number depends on this.
   const [, tick] = useState(0)
@@ -626,7 +638,14 @@ export function GameScreen({
       style={{ '--extra-chrome': settings.showLiveScores ? '46px' : '0px' } as React.CSSProperties}
     >
       <header className="status-bar">
-        <button type="button" className="icon-btn" onClick={onExit} aria-label="Back to menu">
+        <button
+          type="button"
+          className="icon-btn"
+          // Online there is nothing to choose between: leaving goes back to your
+          // friends, and a new game is started from one of their cards.
+          onClick={() => (onNewGame ? setMenu('open') : onExit())}
+          aria-label={onNewGame ? 'Menu' : 'Back to menu'}
+        >
           ‹
         </button>
         <span className="dot" style={{ background: palette[currentPlayer.color].hex }} />
@@ -759,6 +778,39 @@ export function GameScreen({
         onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
       />
+
+      {menu !== 'shut' && onNewGame && (
+        <div className="board-menu-backdrop" onClick={() => setMenu('shut')}>
+          <div className="board-menu" onClick={(event) => event.stopPropagation()}>
+            {menu === 'open' ? (
+              <>
+                <button type="button" className="btn tall" onClick={onExit}>
+                  <span>Back to menu</span>
+                  <span className="sub">This game keeps waiting for you</span>
+                </button>
+                <button type="button" className="btn tall" onClick={() => setMenu('confirm')}>
+                  <span>Start a new game</span>
+                  <span className="sub">Pick a colour and a clock again</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Asked plainly, because there is no undo: the board is kept in
+                    one place and starting another overwrites it. */}
+                <p className="board-menu-ask">
+                  Start a new game? This board is replaced, and it can't be got back.
+                </p>
+                <button type="button" className="btn primary" onClick={onNewGame}>
+                  Yes, new game
+                </button>
+                <button type="button" className="btn quiet" onClick={() => setMenu('open')}>
+                  Keep playing this one
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

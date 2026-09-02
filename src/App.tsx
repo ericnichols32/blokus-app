@@ -5,7 +5,8 @@ import { HomeScreen } from './screens/HomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { SoloSetupScreen } from './screens/SoloSetupScreen'
 import { StatsScreen } from './screens/StatsScreen'
-import { OnlineGamesScreen } from './screens/OnlineGamesScreen'
+import { FriendsScreen } from './screens/FriendsScreen'
+import { PastGamesScreen } from './screens/PastGamesScreen'
 import { OnlineSetupScreen } from './screens/OnlineSetupScreen'
 import { ColorsScreen } from './screens/ColorsScreen'
 import { FriendStatsScreen } from './screens/FriendStatsScreen'
@@ -15,6 +16,7 @@ import {
   clearSession,
   createSolo,
   drawFirstColor,
+  isResumable,
   loadSession,
   saveSession,
 } from './session'
@@ -37,6 +39,7 @@ import {
   watchGame,
 } from './onlineActions'
 import type { OnlineGame } from './online'
+import { useFriends } from './useFriends'
 import {
   rememberOpenGame,
   rememberScreen,
@@ -62,8 +65,8 @@ import './App.css'
 function initialScreen(): Screen {
   const saved = restoredScreen()
 
-  if (saved === 'online') return 'online'
-  if (saved === 'online-game') return restoredOpenGame() ? 'online-game' : 'online'
+  if (saved === 'friends' || saved === 'past-games') return saved
+  if (saved === 'online-game') return restoredOpenGame() ? 'online-game' : 'friends'
 
   // A game in progress wins over the name prompt — being dropped into it
   // mid-game would be worse than asking later.
@@ -126,8 +129,15 @@ function Screens({ settings, setSettings }: ScreensProps) {
    */
   /** Where the colour editor was opened from, and for which seat. */
   const [openFriendId, setOpenFriendId] = useState<string | null>(null)
+  /** A friend's name carried into the new-game form from their card. */
+  const [invitee, setInvitee] = useState<string | undefined>(undefined)
   const [colorsFrom, setColorsFrom] = useState<Screen>('solo-setup')
   const [editingColor, setEditingColor] = useState<Color | undefined>(undefined)
+
+  // Loaded here rather than inside the friends page, because the home screen
+  // asks the same question — is anything waiting on me — and walking between the
+  // two shouldn't re-query the database each time.
+  const friends = useFriends(account, history)
 
   const [onlineGame, setOnlineGame] = useState<OnlineGame | null>(null)
   const [onlineBusy, setOnlineBusy] = useState(false)
@@ -273,6 +283,8 @@ function Screens({ settings, setSettings }: ScreensProps) {
     return (
       <AccountScreen
         account={account}
+        photo={friends.me?.photo}
+        onPhotoChange={friends.setPhoto}
         onSignedIn={signedIn}
         onSignOut={signOut}
         onClose={leaveAccountScreen}
@@ -288,6 +300,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
         onStateChange={handleStateChange}
         onExit={() => setScreen('home')}
         onPlayAgain={playAgain}
+        onNewGame={() => setScreen('solo-setup')}
       />
     )
   }
@@ -318,14 +331,35 @@ function Screens({ settings, setSettings }: ScreensProps) {
     )
   }
 
-  if (screen === 'online') {
+  if (screen === 'friends') {
     return (
-      <OnlineGamesScreen
+      <FriendsScreen
         account={account}
+        friends={friends}
         onOpenGame={(id) => void openOnlineGame(id)}
-        onNewGame={() => setScreen('online-setup')}
+        onNewGameWith={(username) => {
+          setInvitee(username)
+          setScreen('online-setup')
+        }}
+        onNewGroupGame={() => {
+          setInvitee(undefined)
+          setScreen('online-setup')
+        }}
+        onPastGames={() => setScreen('past-games')}
         onSignIn={() => setScreen('account')}
         onClose={() => setScreen('home')}
+      />
+    )
+  }
+
+  if (screen === 'past-games' && account) {
+    return (
+      <PastGamesScreen
+        games={friends.view.finished}
+        history={history}
+        playerId={account.playerId}
+        onOpenGame={(id) => void openOnlineGame(id)}
+        onClose={() => setScreen('friends')}
       />
     )
   }
@@ -335,6 +369,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
       <OnlineSetupScreen
         account={account}
         settings={settings}
+        initialFriend={invitee}
         onEditColors={() => {
           // No seat yet: the colours are dealt when the game is made, so only
           // the whole-set half of that screen has anything to act on.
@@ -343,7 +378,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
           setScreen('colors')
         }}
         onStarted={(id) => void openOnlineGame(id)}
-        onCancel={() => setScreen('online')}
+        onCancel={() => setScreen('friends')}
       />
     )
   }
@@ -356,7 +391,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
             <button
               type="button"
               className="icon-btn"
-              onClick={() => setScreen('online')}
+              onClick={() => setScreen('friends')}
               aria-label="Back"
             >
               ‹
@@ -378,7 +413,12 @@ function Screens({ settings, setSettings }: ScreensProps) {
         session={sessionFor(onlineGame, account.playerId)}
         settings={settings}
         onStateChange={handleStateChange}
-        onExit={() => setScreen('online')}
+        onExit={() => {
+          setScreen('friends')
+          // A turn was almost certainly just played, so the page behind this one
+          // is already out of date by the time it comes back.
+          friends.refresh()
+        }}
         onPlayAgain={playAgain}
         online={{
           yourTurn: view.yourTurn,
@@ -391,7 +431,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
     )
   }
 
-  if (screen === 'friend' && account && openFriendId) {
+  if (screen === 'friend-stats' && account && openFriendId) {
     return (
       <FriendStatsScreen
         history={history}
@@ -411,7 +451,7 @@ function Screens({ settings, setSettings }: ScreensProps) {
         onPlaySolo={() => setScreen('solo-setup')}
         onOpenFriend={(friendId) => {
           setOpenFriendId(friendId)
-          setScreen('friend')
+          setScreen('friend-stats')
         }}
       />
     )
@@ -427,14 +467,21 @@ function Screens({ settings, setSettings }: ScreensProps) {
     )
   }
 
+  // A finished game is still loaded until another is started, and resuming one
+  // of those would land on the scoreboard rather than on a game.
+  const soloResumable = session !== null && session.mode !== 'online' && isResumable(session)
+
   return (
     <HomeScreen
       saved={session}
       account={account}
-      gamesRecorded={history.length}
-      onResume={() => setScreen('game')}
-      onPlaySolo={() => setScreen('solo-setup')}
-      onPlayOnline={() => setScreen('online')}
+      photo={friends.me?.photo}
+      waitingOnYou={friends.view.waitingOnYou}
+      liveGames={friends.view.liveGames}
+      // A solo game in progress is resumed rather than offered as a choice; the
+      // way to a fresh one is the menu on the board itself.
+      onPlaySolo={() => setScreen(soloResumable ? 'game' : 'solo-setup')}
+      onPlayFriends={() => setScreen('friends')}
       onStats={() => setScreen('stats')}
       onSettings={() => setScreen('settings')}
       onAccount={() => setScreen('account')}

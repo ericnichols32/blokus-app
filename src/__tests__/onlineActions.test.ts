@@ -11,7 +11,7 @@ import {
   StaleTurnError,
   describePlayers,
   describeSetup,
-  loadGames,
+  loadOnlineGames,
   recordIfFinished,
   refreshGame,
   resolveParticipants,
@@ -134,7 +134,7 @@ describe('resolveParticipants', () => {
           })),
       }),
     )
-    await expect(loadGames('p-eric')).rejects.toThrow(/bug in the app/)
+    await expect(loadOnlineGames('p-eric')).rejects.toThrow(/bug in the app/)
   })
 
   it('says the server is unreachable rather than that the name is wrong', async () => {
@@ -152,10 +152,10 @@ describe('startGame', () => {
 
     // Whoever the draw put on turn sees it under one heading and the other under
     // the other, but both find the same game.
-    const mine = await loadGames('p-eric')
-    const theirs = await loadGames('p-dave')
-    expect([...mine.yours, ...mine.theirs].map((e) => e.game.id)).toEqual([game.id])
-    expect([...theirs.yours, ...theirs.theirs].map((e) => e.game.id)).toEqual([game.id])
+    const mine = await loadOnlineGames('p-eric')
+    const theirs = await loadOnlineGames('p-dave')
+    expect(mine.map((g) => g.id)).toEqual([game.id])
+    expect(theirs.map((g) => g.id)).toEqual([game.id])
   })
 
   it('seats two colors each when asked', async () => {
@@ -197,7 +197,7 @@ describe('startGame', () => {
     )
 
     await expect(startGame(me, ['dave'], 'double', S.hard)).rejects.toThrow(OnlineError)
-    expect(await loadGames('p-eric')).toEqual({ yours: [], theirs: [], finished: [] })
+    expect(await loadOnlineGames('p-eric')).toEqual([])
   })
 })
 
@@ -375,12 +375,12 @@ describe('refreshGame', () => {
   })
 })
 
-describe('loadGames', () => {
+describe('loadOnlineGames', () => {
   it('reports a failure rather than showing an empty list', async () => {
     // An empty list and a broken connection look identical on screen, and one of
     // them means "your games are gone".
     resetBackend(stubBackend({ listOnlineGames: () => Promise.reject(new Error('offline')) }))
-    await expect(loadGames('p-eric')).rejects.toThrow(OnlineError)
+    await expect(loadOnlineGames('p-eric')).rejects.toThrow(OnlineError)
   })
 })
 

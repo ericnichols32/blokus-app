@@ -1,0 +1,9 @@
+.past {
+  gap: 16px;
+}
+
+.past .note {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}

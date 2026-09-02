@@ -6,15 +6,8 @@ import { recordFinishedGame } from './history'
 import type { GameRecord } from './history'
 import { normalizeUsername } from './account'
 import type { Account } from './account'
-import {
-  colorsOf,
-  createOnlineGame,
-  groupForPlayer,
-  stateOf,
-  submitMove,
-  summarize,
-} from './online'
-import type { GroupedGames, OnlineGame, Participant, SeatFill } from './online'
+import { colorsOf, createOnlineGame, stateOf, submitMove, summarize } from './online'
+import type { OnlineGame, Participant, SeatFill } from './online'
 import type { Session } from './session'
 
 /**
@@ -158,10 +151,17 @@ export async function startGame(
   return game
 }
 
-/** Your games, split into the piles the list shows. */
-export async function loadGames(playerId: string): Promise<GroupedGames> {
+/**
+ * Every online game you are seated in, live and finished, exactly as the store
+ * holds them.
+ *
+ * Unsorted and ungrouped on purpose: the friends page files them under the
+ * people in them rather than into piles, so anything decided here would only
+ * have to be undone. See `buildFriendsView`.
+ */
+export async function loadOnlineGames(playerId: string): Promise<OnlineGame[]> {
   try {
-    return groupForPlayer(await getBackend().listOnlineGames(playerId), playerId)
+    return await getBackend().listOnlineGames(playerId)
   } catch (error) {
     throw failure(
       error,

@@ -28,6 +28,10 @@ export function createLocalBackend(): Backend {
       writePlayers([
         ...players,
         {
+          // Everything already on the profile is carried over first: a claim is
+          // about the name, and a rename that dropped the photo or the friends
+          // list would empty the friends page as a side effect.
+          ...existing,
           playerId,
           username,
           createdAt: existing?.createdAt ?? new Date().toISOString(),
@@ -40,6 +44,25 @@ export function createLocalBackend(): Backend {
 
     async getPlayer(playerId) {
       return readPlayers().find((p) => p.playerId === playerId) ?? null
+    },
+
+    async updateProfile(playerId, patch) {
+      const players = readPlayers()
+      const existing = players.find((p) => p.playerId === playerId)
+      // A profile that isn't here yet still gets one, so a photo picked before
+      // the name has finished being claimed isn't quietly dropped.
+      const base: PlayerProfile = existing ?? {
+        playerId,
+        username: '',
+        createdAt: new Date().toISOString(),
+      }
+
+      const updated: PlayerProfile = { ...base }
+      if (patch.photo === null) delete updated.photo
+      else if (patch.photo !== undefined) updated.photo = patch.photo
+      if (patch.friendIds !== undefined) updated.friendIds = patch.friendIds
+
+      writePlayers([...players.filter((p) => p.playerId !== playerId), updated])
     },
 
     async saveGame(playerId, record) {

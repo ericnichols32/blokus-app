@@ -14,6 +14,7 @@ export function stubBackend(over: Partial<Backend> = {}): Backend {
     lookupUsername: () => Promise.resolve(null),
     claimUsername: () => Promise.resolve(),
     getPlayer: () => Promise.resolve(null),
+    updateProfile: () => Promise.resolve(),
     saveGame: () => Promise.resolve(),
     listGames: () => Promise.resolve([]),
     createOnlineGame: () => Promise.resolve(),

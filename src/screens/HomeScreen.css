@@ -1,41 +1,10 @@
 .home {
-  position: relative;
   justify-content: center;
-  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
-  gap: 20px;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
+  gap: 28px;
   max-width: 440px;
   margin: 0 auto;
   width: 100%;
-}
-
-/*
- * Pinned to the corner rather than sitting in the menu: the settings in here
- * are ones you set once, so they shouldn't compete with the buttons that
- * actually start a game.
- */
-.settings-btn {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 16px);
-  right: 16px;
-  font-size: 17px;
-}
-
-.account-chip {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 16px);
-  left: 16px;
-  max-width: 45%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 7px 12px;
-  border-radius: 999px;
-  border: 1px solid #334155;
-  background: #1e293b;
-  color: #cbd5e1;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.2;
 }
 
 .home-header {
@@ -67,9 +36,81 @@
 .logo-cell.c3 { background: #22c55e; }
 .logo-cell.c4 { background: #ef4444; }
 
-.home .hint {
-  margin: 0;
-  text-align: center;
-  font-size: 13px;
-  color: #64748b;
+/*
+ * The two intentions, given the middle of the screen and roughly equal weight —
+ * neither is the thing you always want, so neither is dressed as the default.
+ */
+.home-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 26px 22px;
+  border-radius: 16px;
+  border: 1px solid #334155;
+  background: #16233c;
+  color: #f8fafc;
+  font-family: inherit;
+  text-align: left;
+}
+
+.home-card-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.home-card-sub {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+/* The two states worth spotting without reading: a game of yours is sitting
+   there, or somebody is waiting on you. */
+.home-card-sub.live {
+  color: #cbd5e1;
+}
+
+.home-card-sub.now {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+/* Quiet by design: things you visit occasionally and never twice in a row. */
+.home-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.home-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 45%;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid #1e293b;
+  background: transparent;
+  color: #94a3b8;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.home-chip .avatar {
+  margin-left: -4px;
+}
+
+.chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

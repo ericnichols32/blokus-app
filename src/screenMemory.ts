@@ -16,11 +16,12 @@ export type Screen =
   | 'stats'
   | 'account'
   | 'game'
-  | 'online'
+  | 'friends'
+  | 'past-games'
   | 'online-setup'
   | 'online-game'
   | 'colors'
-  | 'friend'
+  | 'friend-stats'
 
 const SCREEN_KEY = 'blokus:screen'
 const OPEN_GAME_KEY = 'blokus:online-game'
@@ -37,7 +38,8 @@ const RESTORABLE = new Set<Screen>([
   'solo-setup',
   'settings',
   'stats',
-  'online',
+  'friends',
+  'past-games',
   'online-game',
 ])
 

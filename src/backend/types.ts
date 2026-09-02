@@ -37,6 +37,16 @@ export interface Backend {
   /** The profile behind an id, or null if the store has never seen it. */
   getPlayer(playerId: string): Promise<PlayerProfile | null>
 
+  /**
+   * Changes part of a profile, leaving the rest alone.
+   *
+   * Separate from `claimUsername` because these are the things a player edits
+   * about themselves after the name is settled — their photo, and who they have
+   * added — and a claim that carried them would have to know them all in order
+   * not to wipe the ones it wasn't changing.
+   */
+  updateProfile(playerId: string, patch: ProfilePatch): Promise<void>
+
   /** Files a finished game under a player. Writing the same game twice is safe. */
   saveGame(playerId: string, record: GameRecord): Promise<void>
 
@@ -82,11 +92,41 @@ export class StaleGameError extends Error {
   }
 }
 
+/** The parts of a profile a player can change about themselves. */
+export interface ProfilePatch {
+  /** A new photo, or null to take the current one off. */
+  photo?: string | null
+  /** The whole list, not an addition — the caller owns the merge. */
+  friendIds?: string[]
+}
+
 export interface PlayerProfile {
   playerId: string
   /** With the capitalisation its owner typed. */
   username: string
   createdAt: string
+  /**
+   * A small square photo, stored as a data URL right here on the profile.
+   *
+   * On the profile rather than in file storage because file storage isn't on
+   * the free Firebase plan, and a thumbnail this size (see photo.ts) is a few
+   * tens of kilobytes — comfortably inside a document. The cost is that every
+   * profile read carries the picture, which is why friends' photos are cached
+   * on the device.
+   *
+   * Readable by anyone who can look the name up, exactly like the username and
+   * the PIN hash. Same bargain as the rest of this app: the link goes to
+   * friends.
+   */
+  photo?: string
+  /**
+   * The people this player has added, by playerId.
+   *
+   * Kept on the profile rather than on the device so the friends page is there
+   * when you sign in on another phone — losing it would silently empty the
+   * screen the app is now organised around.
+   */
+  friendIds?: string[]
   /**
    * The PIN guarding this name, absent on an account that has never set one.
    *

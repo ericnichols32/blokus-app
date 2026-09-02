@@ -14,7 +14,7 @@ import type { StoredOnlineGame } from './wire'
  * - `usernames/{lowercased}` → `{ playerId }`. The name-to-person mapping, kept
  *   separate from the person so that renaming is two small writes rather than
  *   moving every game a player has ever played.
- * - `players/{playerId}` → the profile.
+ * - `players/{playerId}` → the profile, photo and friends list included.
  * - `players/{playerId}/games/{gameId}` → one finished game each.
  * - `onlineGames/{gameId}` → a game in progress against friends. Top level
  *   rather than under a player, because it belongs to everyone in it; each
@@ -78,7 +78,26 @@ export function createFirebaseBackend(config: FirebaseConfig): Backend {
         username: (data.username as string) ?? '',
         createdAt: (data.createdAt as string) ?? new Date().toISOString(),
         pin: (data.pin as PlayerProfile['pin']) ?? undefined,
+        photo: (data.photo as string) || undefined,
+        friendIds: Array.isArray(data.friendIds) ? (data.friendIds as string[]) : undefined,
       }
+    },
+
+    async updateProfile(playerId, patch) {
+      const { db, fs } = await connect(config)
+      const fields: Record<string, unknown> = {}
+
+      // deleteField rather than null or '': a stored null would come back as a
+      // photo that exists and shows nothing, and the profile is read on every
+      // friend refresh.
+      if (patch.photo === null) fields.photo = fs.deleteField()
+      else if (patch.photo !== undefined) fields.photo = patch.photo
+      if (patch.friendIds !== undefined) fields.friendIds = patch.friendIds
+      if (Object.keys(fields).length === 0) return
+
+      // merge, because this only ever owns the fields it was handed — the name,
+      // the PIN and the creation date belong to claimUsername.
+      await fs.setDoc(fs.doc(db, 'players', playerId), fields, { merge: true })
     },
 
     async saveGame(playerId, record) {

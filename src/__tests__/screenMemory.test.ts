@@ -29,12 +29,12 @@ describe('remembering the screen', () => {
     expect(restoredScreen()).toBe('stats')
   })
 
-  it('restores an online game and its list', () => {
+  it('restores an online game and the friends page', () => {
     // Both matter now that the app reloads itself: a reload during an online
     // game used to land on the main menu, because nothing about it is saved
     // locally the way a solo game is.
-    rememberScreen('online')
-    expect(restoredScreen()).toBe('online')
+    rememberScreen('friends')
+    expect(restoredScreen()).toBe('friends')
 
     rememberScreen('online-game')
     expect(restoredScreen()).toBe('online-game')
